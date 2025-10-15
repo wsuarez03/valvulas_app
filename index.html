@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Levantamiento de Válvulas</title>
+  <link rel="manifest" href="manifest.json" />
+  <script src="app_indexeddb.js" defer></script>
+</head>
+<body>
+  <h1>Levantamiento de Válvulas</h1>
+  <form id="valveForm">
+    <input type="text" id="codigo" placeholder="Código" required />
+    <input type="text" id="tipo" placeholder="Tipo" required />
+    <input type="text" id="tamano" placeholder="Tamaño" />
+    <input type="number" id="presion" placeholder="Presión" />
+    <input type="text" id="ubicacion" placeholder="Ubicación" />
+    <input type="date" id="fecha" required />
+    <textarea id="observaciones" placeholder="Observaciones"></textarea>
+    <input type="file" id="foto" accept="image/*" capture="camera" />
+    <button type="submit">Guardar</button>
+  </form>
+  <button id="exportCSV">Exportar CSV</button>
+  <button id="exportExcel">Exportar Excel</button>
+</body>
+</html>
