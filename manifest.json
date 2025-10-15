@@ -1,9 +1,0 @@
-{
-  "name": "Levantamiento de Válvulas",
-  "short_name": "Válvulas",
-  "start_url": "./index.html",
-  "display": "standalone",
-  "background_color": "#20232a",
-  "theme_color": "#61dafb",
-  "icons": []
-}
