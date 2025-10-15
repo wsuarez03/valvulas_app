@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Levantamiento de Válvulas</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>Levantamiento de Válvulas</h1>
+    <p class="subtitle">Registro rápido con foto — Guardado offline y envío cuando haya internet</p>
+  </header>
+
+  <main>
+    <form id="valveForm">
+      <label>Foto de la válvula
+        <input id="photoInput" accept="image/*" capture="environment" type="file" />
+      </label>
+
+      <div id="previewWrap">
+        <img id="photoPreview" alt="Preview" />
+      </div>
+
+      <label>Código / ID
+        <input id="codigo" required />
+      </label>
+
+      <label>Tipo
+        <input id="tipo" />
+      </label>
+
+      <label>Tamaño
+        <input id="tamano" />
+      </label>
+
+      <label>Presión
+        <input id="presion" />
+      </label>
+
+      <label>Ubicación
+        <input id="ubicacion" />
+      </label>
+
+      <label>Fecha
+        <input id="fecha" type="date" />
+      </label>
+
+      <label>Observaciones
+        <textarea id="obs"></textarea>
+      </label>
+
+      <div class="buttons">
+        <button type="button" id="saveBtn">Guardar (local)</button>
+        <button type="button" id="pdfBtn">Generar PDF y descargar</button>
+        <button type="button" id="sendBtn">Enviar (EmailJS)</button>
+      </div>
+    </form>
+
+    <section class="pending">
+      <h2>Envíos pendientes</h2>
+      <ul id="pendingList"></ul>
+      <div class="pending-actions">
+        <button id="sendPendingBtn">Enviar pendientes ahora</button>
+      </div>
+    </section>
+
+    <section class="saved">
+      <h2>Hojas de vida guardadas (local)</h2>
+      <ul id="savedList"></ul>
+    </section>
+
+    <footer>
+      <small>Contacto de envío por defecto: tecnicodeservicios@valserindustriales.com</small>
+    </footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@2.6.4/dist/email.min.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Initialize EmailJS - replace the user ID below with your EmailJS user ID
+    (function(){
+      // TODO: replace 'YOUR_EMAILJS_USER_ID' with your EmailJS user id
+      if(window.emailjs){ emailjs.init('YOUR_EMAILJS_USER_ID'); }
+    })();
+  </script>
+</body>
+</html>
