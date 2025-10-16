@@ -102,6 +102,14 @@ function renderSaved() {
   });
 }
 
+function deleteSaved(index) {
+  if (!confirm('¿Deseas eliminar este registro?')) return;
+  const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.SAVED) || '[]');
+  list.splice(index, 1); // elimina el elemento del arreglo
+  localStorage.setItem(STORAGE_KEYS.SAVED, JSON.stringify(list)); // guarda nuevamente
+  renderSaved(); // actualiza la lista visual
+}
+
 window.downloadSaved = async (jsonEnc) => {
   const it = JSON.parse(decodeURIComponent(jsonEnc));
   const pdf = await generatePdfBlob(it);
