@@ -27,10 +27,13 @@ async function fileToDataUrl(file){
 
 function readForm(){
   return {
-    codigo: el('codigo').value || '',
-    tipo: el('tipo').value || '',
+    cliete: el('cliente').value || '',
+    tag: el('tag').value || '',
+    marca: el('marca').value || '',
+    modelo: el('modelo').value || '',
     tamano: el('tamano').value || '',
-    presion: el('presion').value || '',
+    serie: el('serie').value || '',
+    set: el('set').value || '',
     ubicacion: el('ubicacion').value || '',
     fecha: el('fecha').value || (new Date()).toISOString().slice(0,10),
     obs: el('obs').value || '',
