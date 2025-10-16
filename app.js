@@ -81,19 +81,27 @@ el('sendBtn').addEventListener('click', async ()=>{
   catch(e){ console.warn('Encolado para envío', e); alert('Encolado para envío cuando haya internet'); }
 });
 
-function renderSaved(){
+function renderSaved() {
   const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.SAVED) || '[]');
   const wrap = el('savedList');
   wrap.innerHTML = '';
-  list.forEach(it=>{
+
+  list.forEach((it, index) => {
     const li = document.createElement('li');
-    li.innerHTML = `<div><strong>${it.codigo}</strong> — ${it.tipo} — ${it.ubicacion} <br><small>${it.fecha} ${it.createdAt?'<span> • '+it.createdAt+'</span>':''}</small></div>
+    li.innerHTML = `
       <div>
-        <button onclick="downloadSaved('${encodeURIComponent(JSON.stringify(it))}')">Descargar PDF</button>
-      </div>`;
+        <strong>${it.codigo}</strong> — ${it.tipo} — ${it.ubicacion} 
+        <br><small>${it.fecha} ${it.createdAt ? '<span> • ' + it.createdAt + '</span>' : ''}</small>
+      </div>
+      <div style="margin-top: 4px;">
+        <button onclick="downloadSaved('${encodeURIComponent(JSON.stringify(it))}')">📄 Descargar PDF</button>
+        <button onclick="deleteSaved(${index})" style="background-color:#c0392b; color:white;">🗑️ Eliminar</button>
+      </div>
+    `;
     wrap.appendChild(li);
   });
 }
+
 window.downloadSaved = async (jsonEnc) => {
   const it = JSON.parse(decodeURIComponent(jsonEnc));
   const pdf = await generatePdfBlob(it);
