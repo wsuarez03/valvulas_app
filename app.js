@@ -147,7 +147,7 @@ function renderSaved() {
       const li = document.createElement('li');
       li.innerHTML = `
         <div>
-          <strong>${it.serie}</strong> — ${it.ubicacion || 'Sin ubicación'}<br>
+          <strong>${it.serie}</strong> <br>
           <small>${it.fecha || ''} • ${it.createdAt || ''}</small>
         </div>
         <div>
