@@ -27,7 +27,7 @@ async function fileToDataUrl(file){
 
 function readForm(){
   return {
-    cliete: el('cliente').value || '',
+    cliente: el('cliente').value || '',
     tag: el('tag').value || '',
     marca: el('marca').value || '',
     modelo: el('modelo').value || '',
@@ -40,6 +40,7 @@ function readForm(){
     foto: photoPreview.src || ''
   };
 }
+
 
 function saveLocal(entry){
   const items = JSON.parse(localStorage.getItem(STORAGE_KEYS.SAVED) || '[]');
@@ -57,7 +58,7 @@ function addPending(entry){
 
 el('saveBtn').addEventListener('click', ()=>{
   const entry = readForm();
-  if(!entry.codigo){ alert('Ingrese el código'); return; }
+  if(!entry.serie){ alert('Ingrese la serie de la válvula'); return; }
   entry.createdAt = new Date().toISOString();
   saveLocal(entry);
   alert('Guardado localmente ✅');
@@ -65,14 +66,14 @@ el('saveBtn').addEventListener('click', ()=>{
 
 el('pdfBtn').addEventListener('click', async ()=>{
   const entry = readForm();
-  if(!entry.codigo){ alert('Ingrese el código'); return; }
+  if(!entry.serie){ alert('Ingrese la serie de la válvula'); return; }
   const pdfBlob = await generatePdfBlob(entry);
-  downloadBlob(pdfBlob, `Valvula_${entry.codigo}.pdf`);
+  downloadBlob(pdfBlob, `Valvula_${entry.serie}.pdf`);
 });
 
 el('sendBtn').addEventListener('click', async ()=>{
   const entry = readForm();
-  if(!entry.codigo){ alert('Ingrese el código'); return; }
+  if(!entry.serie){ alert('Ingrese la serie de la válvula'); return; }
   entry.createdAt = new Date().toISOString();
   // queue it
   addPending(entry);
@@ -90,7 +91,7 @@ function renderSaved() {
     const li = document.createElement('li');
     li.innerHTML = `
       <div>
-        <strong>${it.codigo}</strong> — ${it.tipo} — ${it.ubicacion} 
+        <strong>${it.serie}</strong> — ${it.marca} — ${it.ubicacion} 
         <br><small>${it.fecha} ${it.createdAt ? '<span> • ' + it.createdAt + '</span>' : ''}</small>
       </div>
       <div style="margin-top: 4px;">
@@ -113,7 +114,7 @@ function deleteSaved(index) {
 window.downloadSaved = async (jsonEnc) => {
   const it = JSON.parse(decodeURIComponent(jsonEnc));
   const pdf = await generatePdfBlob(it);
-  downloadBlob(pdf, `Valvula_${it.codigo}.pdf`);
+  downloadBlob(pdf, `Valvula_${it.serie}.pdf`);
 };
 
 function renderPending(){
@@ -122,7 +123,7 @@ function renderPending(){
   wrap.innerHTML = '';
   list.forEach((it, idx)=>{
     const li = document.createElement('li');
-    li.innerHTML = `<div><strong>${it.codigo}</strong> — ${it.tipo} — ${it.ubicacion}</div>
+    li.innerHTML = `<div><strong>${it.serie}</strong> — ${it.marca} — ${it.ubicacion}</div>
       <div>
         <button onclick="removePending(${idx})">Eliminar</button>
       </div>`;
@@ -154,7 +155,7 @@ async function trySendPending(){
       await sendViaEmailJS(entry);
       // remove from pending
       const current = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING) || '[]');
-      const idx = current.findIndex(i=>i.createdAt===entry.createdAt && i.codigo===entry.codigo);
+      const idx = current.findIndex(i=>i.createdAt===entry.createdAt && i.serie===entry.serie);
       if(idx>=0){ current.splice(idx,1); localStorage.setItem(STORAGE_KEYS.PENDING, JSON.stringify(current)); }
     }catch(e){
       console.error('Error enviando', e);
@@ -172,8 +173,8 @@ async function sendViaEmailJS(entry){
   const templateParams = {
     to_email: defaultRecipient,
     to_name: 'Supervisor SST',
-    subject: `Hoja de vida válvula: ${entry.codigo}`,
-    message: `Adjunto hoja de vida de la válvula ${entry.codigo}`,
+    subject: `Hoja de vida válvula: ${entry.serie}`,
+    message: `Adjunto hoja de vida de la válvula ${entry.serie}`,
     attachment: base64
   };
   // replace with your actual service and template IDs
@@ -190,16 +191,19 @@ async function generatePdfBlob(entry){
   card.style.background = '#ffffff';
   card.style.color = '#000';
   card.innerHTML = `
-    <h2>Valvula - Hoja de vida</h2>
-    <p><strong>Código:</strong> ${entry.codigo}</p>
-    <p><strong>Tipo:</strong> ${entry.tipo}</p>
-    <p><strong>Tamaño:</strong> ${entry.tamano}</p>
-    <p><strong>Presión:</strong> ${entry.presion}</p>
-    <p><strong>Ubicación:</strong> ${entry.ubicacion}</p>
-    <p><strong>Fecha:</strong> ${entry.fecha}</p>
-    <p><strong>Observaciones:</strong><br/> ${entry.obs}</p>
-    <div><img src="${entry.foto}" style="max-width:760px;border:1px solid #ccc"/></div>
-  `;
+<h2>Válvula - Hoja de Vida</h2>
+  <p><strong>Cliente:</strong> ${entry.cliente}</p>
+  <p><strong>Serie:</strong> ${entry.serie}</p>  
+  <p><strong>TAG:</strong> ${entry.tag}</p>
+  <p><strong>Marca:</strong> ${entry.marca}</p>
+  <p><strong>Modelo:</strong> ${entry.modelo}</p>
+  <p><strong>Tamaño:</strong> ${entry.tamano}</p>
+  <p><strong>Set de presión:</strong> ${entry.set}</p>
+  <p><strong>Ubicación:</strong> ${entry.ubicacion}</p>
+  <p><strong>Fecha:</strong> ${entry.fecha}</p>
+  <p><strong>Observaciones:</strong><br/> ${entry.obs}</p>
+  <div><img src="${entry.foto}" style="max-width:760px;border:1px solid #ccc"/></div>
+`;
   document.body.appendChild(card);
   const canvas = await html2canvas(card, {scale:1.5, useCORS:true});
   document.body.removeChild(card);
