@@ -19,14 +19,14 @@
         <input id="photoInput" accept="image/*" capture="environment" type="file" />
       </label>
       <div id="previewWrap">
-        <img id="photoPreview" alt="Vista previa válvula" />
+        <img id="photoPreview" alt="Vista previa válvula" style="display:none;" />
       </div>
 
       <label>Foto de la placa
         <input id="photoPlacaInput" accept="image/*" capture="environment" type="file" />
       </label>
       <div id="previewPlacaWrap">
-        <img id="photoPlacaPreview" alt="Vista previa placa" />
+        <img id="photoPlacaPreview" alt="Vista previa placa" style="display:none;" />
       </div>
 
       <label>Cliente <input id="cliente" required /></label>
@@ -72,7 +72,6 @@
   <script src="app.js"></script>
 
   <script>
-    // Inicializar EmailJS (reemplaza con tu USER ID real)
     (function(){
       if(window.emailjs){
         emailjs.init('YOUR_EMAILJS_USER_ID');
