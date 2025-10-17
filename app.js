@@ -61,7 +61,7 @@ function handlePhoto(e) {
 // === Guardar local ===
 function saveLocal() {
   const data = readFormData();
-  if (!data.tag) return alert('Debe ingresar el Tag');
+  if (!data.serie) return alert('Debe ingresar la Serie (campo obligatorio)');
   addToDB(data, renderSaved);
   alert('Guardado localmente ✅');
   document.getElementById('valveForm').reset();
@@ -99,7 +99,7 @@ function renderSaved() {
       const li = document.createElement('li');
       li.innerHTML = `
         <div>
-          <strong>${it.tag}</strong> — ${it.ubicacion || 'Sin ubicación'}<br>
+          <strong>${it.serie}</strong> — ${it.ubicacion || 'Sin ubicación'}<br>
           <small>${it.fecha || ''} • ${it.createdAt || ''}</small>
         </div>
         <div>
@@ -144,7 +144,7 @@ async function downloadSaved(id) {
         console.warn('Error al añadir imagen al PDF', e);
       }
     }
-    const filename = `Valvula_${it.tag || 'sin_tag'}.pdf`;
+    const filename = `Valvula_${it.serie || 'sin_serie'}.pdf`;
     pdf.save(filename);
   };
 }
@@ -152,7 +152,7 @@ async function downloadSaved(id) {
 // === Enviar ===
 function sendNow() {
   const data = readFormData();
-  if (!data.tag) return alert('Debe ingresar el Tag');
+  if (!data.serie) return alert('Debe ingresar la Serie antes de enviar');
   if (!window.emailjs) return alert('EmailJS no está disponible');
   emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
     to_email: 'tecnicodeservicios@valserindustriales.com',
@@ -162,9 +162,9 @@ function sendNow() {
   .catch(err => alert('Error al enviar: ' + err.text));
 }
 
-// === Enviar pendientes ===
+// === Enviar pendientes (para uso futuro) ===
 function sendPending() {
-  alert('Función de envío pendiente puede integrarse luego con sync.');
+  alert('Función de envío pendiente se puede integrar luego con sincronización.');
 }
 
 // === Utilidad ===
