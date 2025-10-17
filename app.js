@@ -6,9 +6,10 @@ window.addEventListener('DOMContentLoaded', initApp);
 
 function initApp() {
   initDB();
-  document.getElementById('photoInput').addEventListener('change', handlePhoto);
+  document.getElementById('photoInput').addEventListener('change', e => handlePhoto(e, 'photoPreview'));
+  document.getElementById('photoPlacaInput').addEventListener('change', e => handlePhoto(e, 'photoPlacaPreview'));
   document.getElementById('saveBtn').addEventListener('click', saveLocal);
-  document.getElementById('pdfBtn').addEventListener('click', generatePDF);
+  document.getElementById('pdfBtn').addEventListener('click', generatePDFfromForm);
   document.getElementById('sendBtn').addEventListener('click', sendNow);
   document.getElementById('sendPendingBtn').addEventListener('click', sendPending);
 }
@@ -29,15 +30,13 @@ function initDB() {
 
 function addToDB(data, cb) {
   const tx = db.transaction(STORE_NAME, 'readwrite');
-  const store = tx.objectStore(STORE_NAME);
-  store.add(data);
+  tx.objectStore(STORE_NAME).add(data);
   tx.oncomplete = cb;
 }
 
 function getAllFromDB(cb) {
   const tx = db.transaction(STORE_NAME, 'readonly');
-  const store = tx.objectStore(STORE_NAME);
-  const req = store.getAll();
+  const req = tx.objectStore(STORE_NAME).getAll();
   req.onsuccess = () => cb(req.result);
 }
 
@@ -48,12 +47,12 @@ function deleteFromDB(id, cb) {
 }
 
 // === Foto preview ===
-function handlePhoto(e) {
+function handlePhoto(e, previewId) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
   reader.onload = ev => {
-    document.getElementById('photoPreview').src = ev.target.result;
+    document.getElementById(previewId).src = ev.target.result;
   };
   reader.readAsDataURL(file);
 }
@@ -66,6 +65,7 @@ function saveLocal() {
   alert('Guardado localmente ✅');
   document.getElementById('valveForm').reset();
   document.getElementById('photoPreview').src = '';
+  document.getElementById('photoPlacaPreview').src = '';
 }
 
 function readFormData() {
@@ -81,6 +81,7 @@ function readFormData() {
     fecha: el('fecha').value,
     obs: el('obs').value,
     foto: document.getElementById('photoPreview').src || '',
+    fotoPlaca: document.getElementById('photoPlacaPreview').src || '',
     createdAt: new Date().toLocaleString()
   };
 }
@@ -103,7 +104,7 @@ function renderSaved() {
           <small>${it.fecha || ''} • ${it.createdAt || ''}</small>
         </div>
         <div>
-          <button onclick='downloadSaved(${it.id})'>PDF</button>
+          <button onclick='downloadSaved(${it.id})'>📄 PDF</button>
           <button onclick='deleteSaved(${it.id})' style="background:#ef4444;color:white">🗑</button>
         </div>
       `;
@@ -118,34 +119,76 @@ function deleteSaved(id) {
   deleteFromDB(id, renderSaved);
 }
 
-// === PDF ===
-async function downloadSaved(id) {
-  const tx = db.transaction(STORE_NAME, 'readonly');
-  const store = tx.objectStore(STORE_NAME);
-  const req = store.get(id);
-  req.onsuccess = async () => {
-    const it = req.result;
-    if (!it) return;
-    const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF();
-    pdf.setFontSize(14);
-    pdf.text('Levantamiento de Válvulas', 10, 10);
-    let y = 20;
-    Object.entries(it).forEach(([k, v]) => {
-      if (k !== 'foto' && k !== 'id') {
-        pdf.text(`${k}: ${v || ''}`, 10, y);
-        y += 8;
-      }
-    });
-    if (it.foto) {
-      try {
-        pdf.addImage(it.foto, 'JPEG', 130, 20, 60, 60);
-      } catch (e) {
-        console.warn('Error al añadir imagen al PDF', e);
-      }
+// === PDF desde formulario ===
+function generatePDFfromForm() {
+  const data = readFormData();
+  if (!data.serie) return alert('Debe ingresar la Serie antes de generar el PDF');
+  generatePDF(data);
+}
+
+// === Generar PDF con ambas fotos ===
+async function generatePDF(data) {
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF();
+  let y = 10;
+
+  pdf.setFontSize(16);
+  pdf.text('Levantamiento de Válvulas', 10, y);
+  y += 10;
+  pdf.setFontSize(12);
+
+  const fields = [
+    ['Cliente', data.cliente],
+    ['Serie', data.serie],
+    ['TAG', data.tag],
+    ['Marca', data.marca],
+    ['Modelo', data.modelo],
+    ['Tamaño', data.tamano],
+    ['Set de presión', data.set],
+    ['Ubicación', data.ubicacion],
+    ['Fecha', data.fecha],
+    ['Observaciones', data.obs]
+  ];
+
+  fields.forEach(([label, value]) => {
+    pdf.text(`${label}: ${value || ''}`, 10, y);
+    y += 8;
+  });
+
+  // Espacio para fotos
+  y += 4;
+  if (data.foto) {
+    try {
+      pdf.text('Foto de la válvula:', 10, y);
+      y += 6;
+      pdf.addImage(data.foto, 'JPEG', 10, y, 90, 70);
+      y += 80;
+    } catch (e) {
+      console.warn('Error añadiendo foto principal', e);
     }
-    const filename = `Valvula_${it.serie || 'sin_serie'}.pdf`;
-    pdf.save(filename);
+  }
+
+  if (data.fotoPlaca) {
+    try {
+      pdf.text('Foto de la placa:', 10, y);
+      y += 6;
+      pdf.addImage(data.fotoPlaca, 'JPEG', 10, y, 90, 70);
+      y += 80;
+    } catch (e) {
+      console.warn('Error añadiendo foto de placa', e);
+    }
+  }
+
+  pdf.save(`Valvula_${data.serie}.pdf`);
+}
+
+// === Descargar desde lista ===
+function downloadSaved(id) {
+  const tx = db.transaction(STORE_NAME, 'readonly');
+  const req = tx.objectStore(STORE_NAME).get(id);
+  req.onsuccess = () => {
+    const data = req.result;
+    if (data) generatePDF(data);
   };
 }
 
@@ -156,15 +199,16 @@ function sendNow() {
   if (!window.emailjs) return alert('EmailJS no está disponible');
   emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
     to_email: 'tecnicodeservicios@valserindustriales.com',
+    subject: `Hoja de vida válvula ${data.serie}`,
     message: JSON.stringify(data, null, 2)
   })
   .then(() => alert('Correo enviado ✅'))
   .catch(err => alert('Error al enviar: ' + err.text));
 }
 
-// === Enviar pendientes (para uso futuro) ===
+// === Envío pendientes (futuro) ===
 function sendPending() {
-  alert('Función de envío pendiente se puede integrar luego con sincronización.');
+  alert('Función de envío pendiente (se puede integrar luego).');
 }
 
 // === Utilidad ===
