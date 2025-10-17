@@ -23,20 +23,8 @@
         <img id="photoPreview" alt="Preview" />
       </div>
 
-      <label>Foto de la placa
-        <input id="photoPlacaInput" accept="image/*" capture="environment" type="file" />
-      </label>
-
-      <div id="previewPlacaWrap">
-       <img id="photoPlacaPreview" alt="Preview Placa" />
-      </div>
-
       <label>Cliente
         <input id="cliente" required />
-      </label>
-
-      <label>Serie
-        <input id="serie" />
       </label>
 
       <label>Tag
@@ -53,6 +41,10 @@
 
       <label>Tamaño
         <input id="tamano" />
+      </label>
+
+      <label>Serie
+        <input id="serie" />
       </label>
 
       <label>Set de presión
@@ -92,7 +84,7 @@
     </section>
 
     <footer>
-      <small>Contacto de envío por defecto: tecnicodeservicios@valserindustriales.com</small>
+      <small>Contacto de envío: tecnicodeservicios@valserindustriales.com</small>
     </footer>
   </main>
 
@@ -101,10 +93,8 @@
   <script src="https://cdn.jsdelivr.net/npm/emailjs-com@2.6.4/dist/email.min.js"></script>
   <script src="app.js"></script>
   <script>
-    // Initialize EmailJS - replace the user ID below with your EmailJS user ID
     (function(){
-      // TODO: replace 'YOUR_EMAILJS_USER_ID' with your EmailJS user id
-      if(window.emailjs){ emailjs.init('YOUR_EMAILJS_USER_ID'); }
+      if(window.emailjs){ emailjs.init('YOUR_EMAILJS_USER_ID'); } // reemplaza con tu ID
     })();
   </script>
 </body>
