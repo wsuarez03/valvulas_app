@@ -29,3 +29,30 @@ button:active{transform:translateY(1px)}
 .pending ul, .saved ul{list-style:none;padding:0;margin:0}
 .pending li, .saved li{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03);display:flex;justify-content:space-between;align-items:center}
 footer{margin-top:12px;text-align:center;color:var(--muted);font-size:.9rem}
+
+/* --- Previsualización de fotos --- */
+#previewWrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0;
+}
+
+/* Foto principal más grande */
+#photoPreview {
+  max-width: 280px;
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Nueva previsualización para la foto de la placa (más pequeña) */
+#photoPreviewPlaca {
+  max-width: 160px;
+  width: 60%;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  opacity: 0.95;
+}
+
