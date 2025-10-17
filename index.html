@@ -18,50 +18,27 @@
       <label>Foto de la válvula
         <input id="photoInput" accept="image/*" capture="environment" type="file" />
       </label>
-
       <div id="previewWrap">
-        <img id="photoPreview" alt="Preview" />
+        <img id="photoPreview" alt="Vista previa válvula" />
       </div>
 
-      <label>Cliente
-        <input id="cliente" required />
+      <label>Foto de la placa
+        <input id="photoPlacaInput" accept="image/*" capture="environment" type="file" />
       </label>
+      <div id="previewPlacaWrap">
+        <img id="photoPlacaPreview" alt="Vista previa placa" />
+      </div>
 
-      <label>Tag
-        <input id="tag" required />
-      </label>
-
-      <label>Marca
-        <input id="marca" />
-      </label>
-
-      <label>Modelo
-        <input id="modelo" />
-      </label>
-
-      <label>Tamaño
-        <input id="tamano" />
-      </label>
-
-      <label>Serie
-        <input id="serie" />
-      </label>
-
-      <label>Set de presión
-        <input id="set" />
-      </label>
-
-      <label>Ubicación
-        <input id="ubicacion" />
-      </label>
-
-      <label>Fecha
-        <input id="fecha" type="date" />
-      </label>
-
-      <label>Observaciones
-        <textarea id="obs"></textarea>
-      </label>
+      <label>Cliente <input id="cliente" required /></label>
+      <label>Serie <input id="serie" /></label>
+      <label>Tag <input id="tag" required /></label>
+      <label>Marca <input id="marca" /></label>
+      <label>Modelo <input id="modelo" /></label>
+      <label>Tamaño <input id="tamano" /></label>
+      <label>Set de presión <input id="set" /></label>
+      <label>Ubicación <input id="ubicacion" /></label>
+      <label>Fecha <input id="fecha" type="date" /></label>
+      <label>Observaciones <textarea id="obs"></textarea></label>
 
       <div class="buttons">
         <button type="button" id="saveBtn">Guardar (local)</button>
@@ -84,17 +61,22 @@
     </section>
 
     <footer>
-      <small>Contacto de envío: tecnicodeservicios@valserindustriales.com</small>
+      <small>Contacto de envío por defecto: tecnicodeservicios@valserindustriales.com</small>
     </footer>
   </main>
 
+  <!-- Dependencias -->
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/emailjs-com@2.6.4/dist/email.min.js"></script>
   <script src="app.js"></script>
+
   <script>
+    // Inicializar EmailJS (reemplaza con tu USER ID real)
     (function(){
-      if(window.emailjs){ emailjs.init('YOUR_EMAILJS_USER_ID'); } // reemplaza con tu ID
+      if(window.emailjs){
+        emailjs.init('YOUR_EMAILJS_USER_ID');
+      }
     })();
   </script>
 </body>
