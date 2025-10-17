@@ -248,20 +248,6 @@ function downloadSaved(serie) {
   };
 }
 
-// === Enviar ===
-function sendNow() {
-  const data = readFormData();
-  if (!data.serie) return alert('Debe ingresar la Serie antes de enviar');
-  if (!window.emailjs) return alert('EmailJS no está disponible');
-  emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
-    to_email: 'tecnicodeservicios@valserindustriales.com',
-    subject: `Hoja de vida válvula ${data.serie}`,
-    message: JSON.stringify(data, null, 2)
-  })
-  .then(() => alert('Correo enviado ✅'))
-  .catch(err => alert('Error al enviar: ' + err.text));
-}
-
 // === Envío pendientes (futuro) ===
 function sendPending() {
   alert('Función de envío pendiente (se puede integrar luego).');
