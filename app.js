@@ -1,45 +1,74 @@
-const STORAGE_KEYS = {
-  SAVED: 'valvulas_saved_v1',
-  PENDING: 'valvulas_pending_v1'
-};
+const DB_NAME = 'valvulasDB';
+const STORE_NAME = 'hojas';
+let db;
 
-const defaultRecipient = 'tecnicodeservicios@valserindustriales.com';
-const el = id => document.getElementById(id);
+window.addEventListener('DOMContentLoaded', initApp);
 
-const photoInput = el('photoInput');
-const photoPreview = el('photoPreview');
-const photoPlacaInput = el('photoPlacaInput');
-const photoPlacaPreview = el('photoPlacaPreview');
-const form = el('valveForm');
-
-// --- CARGA DE FOTOS ---
-photoInput.addEventListener('change', async e => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  const dataUrl = await fileToDataUrl(file);
-  photoPreview.src = dataUrl;
-  photoPreview.style.display = 'block';
-});
-
-photoPlacaInput.addEventListener('change', async e => {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  const dataUrl = await fileToDataUrl(file);
-  photoPlacaPreview.src = dataUrl;
-  photoPlacaPreview.style.display = 'block';
-});
-
-async function fileToDataUrl(file) {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = () => res(r.result);
-    r.onerror = rej;
-    r.readAsDataURL(file);
-  });
+function initApp() {
+  initDB();
+  document.getElementById('photoInput').addEventListener('change', handlePhoto);
+  document.getElementById('saveBtn').addEventListener('click', saveLocal);
+  document.getElementById('pdfBtn').addEventListener('click', generatePDF);
+  document.getElementById('sendBtn').addEventListener('click', sendNow);
+  document.getElementById('sendPendingBtn').addEventListener('click', sendPending);
 }
 
-// --- LECTURA Y GUARDADO ---
-function readForm() {
+// === IndexedDB ===
+function initDB() {
+  const request = indexedDB.open(DB_NAME, 1);
+  request.onupgradeneeded = e => {
+    const db = e.target.result;
+    db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+  };
+  request.onsuccess = e => {
+    db = e.target.result;
+    renderSaved();
+  };
+  request.onerror = e => console.error('IndexedDB error:', e);
+}
+
+function addToDB(data, cb) {
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const store = tx.objectStore(STORE_NAME);
+  store.add(data);
+  tx.oncomplete = cb;
+}
+
+function getAllFromDB(cb) {
+  const tx = db.transaction(STORE_NAME, 'readonly');
+  const store = tx.objectStore(STORE_NAME);
+  const req = store.getAll();
+  req.onsuccess = () => cb(req.result);
+}
+
+function deleteFromDB(id, cb) {
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  tx.objectStore(STORE_NAME).delete(id);
+  tx.oncomplete = cb;
+}
+
+// === Foto preview ===
+function handlePhoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    document.getElementById('photoPreview').src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// === Guardar local ===
+function saveLocal() {
+  const data = readFormData();
+  if (!data.tag) return alert('Debe ingresar el Tag');
+  addToDB(data, renderSaved);
+  alert('Guardado localmente ✅');
+  document.getElementById('valveForm').reset();
+  document.getElementById('photoPreview').src = '';
+}
+
+function readFormData() {
   return {
     cliente: el('cliente').value,
     tag: el('tag').value,
@@ -49,131 +78,94 @@ function readForm() {
     serie: el('serie').value,
     set: el('set').value,
     ubicacion: el('ubicacion').value,
-    fecha: el('fecha').value || new Date().toISOString().slice(0, 10),
+    fecha: el('fecha').value,
     obs: el('obs').value,
-    foto: photoPreview.src || '',
-    fotoPlaca: photoPlacaPreview.src || ''
+    foto: document.getElementById('photoPreview').src || '',
+    createdAt: new Date().toLocaleString()
   };
 }
 
-function saveLocal(entry) {
-  const items = JSON.parse(localStorage.getItem(STORAGE_KEYS.SAVED) || '[]');
-  items.unshift(entry);
-  localStorage.setItem(STORAGE_KEYS.SAVED, JSON.stringify(items));
-  renderSaved();
-}
-
-function addPending(entry) {
-  const items = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING) || '[]');
-  items.unshift(entry);
-  localStorage.setItem(STORAGE_KEYS.PENDING, JSON.stringify(items));
-  renderPending();
-}
-
-// --- BOTONES ---
-el('saveBtn').addEventListener('click', () => {
-  const entry = readForm();
-  if (!entry.serie) return alert('Ingrese la serie de la válvula');
-  entry.createdAt = new Date().toISOString();
-  saveLocal(entry);
-  alert('Guardado localmente ✅');
-});
-
-el('pdfBtn').addEventListener('click', async () => {
-  const entry = readForm();
-  if (!entry.serie) return alert('Ingrese la serie de la válvula');
-  const pdfBlob = await generatePdfBlob(entry);
-  downloadBlob(pdfBlob, `Valvula_${entry.serie}.pdf`);
-});
-
-el('sendBtn').addEventListener('click', async () => {
-  const entry = readForm();
-  if (!entry.serie) return alert('Ingrese la serie de la válvula');
-  entry.createdAt = new Date().toISOString();
-  addPending(entry);
-  try {
-    await trySendPending();
-  } catch {
-    alert('Encolado para envío cuando haya internet');
-  }
-});
-
-// --- LISTADOS ---
+// === Render listado local ===
 function renderSaved() {
-  const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.SAVED) || '[]');
   const wrap = el('savedList');
-  wrap.innerHTML = '';
-  list.forEach((it, i) => {
-    const li = document.createElement('li');
-    li.innerHTML = `
-      <div><strong>${it.serie}</strong> — ${it.marca} — ${it.ubicacion}<br><small>${it.fecha}</small></div>
-      <div>
-        <button onclick="downloadSaved('${encodeURIComponent(JSON.stringify(it))}')">📄 PDF</button>
-        <button onclick="deleteSaved(${i})" style="background:#c0392b;color:white;">🗑️</button>
-      </div>`;
-    wrap.appendChild(li);
+  wrap.innerHTML = '<li>Cargando...</li>';
+  getAllFromDB(list => {
+    wrap.innerHTML = '';
+    if (!list.length) {
+      wrap.innerHTML = '<li>No hay hojas guardadas</li>';
+      return;
+    }
+    list.forEach(it => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <div>
+          <strong>${it.tag}</strong> — ${it.ubicacion || 'Sin ubicación'}<br>
+          <small>${it.fecha || ''} • ${it.createdAt || ''}</small>
+        </div>
+        <div>
+          <button onclick='downloadSaved(${it.id})'>PDF</button>
+          <button onclick='deleteSaved(${it.id})' style="background:#ef4444;color:white">🗑</button>
+        </div>
+      `;
+      wrap.appendChild(li);
+    });
   });
 }
 
-function deleteSaved(i) {
-  if (!confirm('¿Eliminar este registro?')) return;
-  const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.SAVED) || '[]');
-  list.splice(i, 1);
-  localStorage.setItem(STORAGE_KEYS.SAVED, JSON.stringify(list));
-  renderSaved();
+// === Eliminar ===
+function deleteSaved(id) {
+  if (!confirm('¿Eliminar esta hoja de vida local?')) return;
+  deleteFromDB(id, renderSaved);
 }
 
-window.downloadSaved = async (jsonEnc) => {
-  const it = JSON.parse(decodeURIComponent(jsonEnc));
-  const pdf = await generatePdfBlob(it);
-  downloadBlob(pdf, `Valvula_${it.serie}.pdf`);
-};
-
-// --- PDF ---
-async function generatePdfBlob(entry) {
-  const card = document.createElement('div');
-  card.style.width = '800px';
-  card.style.padding = '18px';
-  card.style.background = '#fff';
-  card.style.color = '#000';
-  card.innerHTML = `
-    <h2>Válvula - Hoja de Vida</h2>
-    <p><strong>Cliente:</strong> ${entry.cliente}</p>
-    <p><strong>Serie:</strong> ${entry.serie}</p>
-    <p><strong>TAG:</strong> ${entry.tag}</p>
-    <p><strong>Marca:</strong> ${entry.marca}</p>
-    <p><strong>Modelo:</strong> ${entry.modelo}</p>
-    <p><strong>Tamaño:</strong> ${entry.tamano}</p>
-    <p><strong>Set de presión:</strong> ${entry.set}</p>
-    <p><strong>Ubicación:</strong> ${entry.ubicacion}</p>
-    <p><strong>Fecha:</strong> ${entry.fecha}</p>
-    <p><strong>Observaciones:</strong><br>${entry.obs}</p>
-    <h3>Foto válvula</h3>
-    ${entry.foto ? `<img src="${entry.foto}" style="max-width:760px;border:1px solid #ccc">` : '<p>No disponible</p>'}
-    <h3>Foto placa</h3>
-    ${entry.fotoPlaca ? `<img src="${entry.fotoPlaca}" style="max-width:760px;border:1px solid #ccc">` : '<p>No disponible</p>'}
-  `;
-  document.body.appendChild(card);
-  const canvas = await html2canvas(card, { scale: 1.5, useCORS: true });
-  document.body.removeChild(card);
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({ unit: 'px', format: [canvas.width, canvas.height] });
-  pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, canvas.width, canvas.height);
-  return pdf.output('blob');
+// === PDF ===
+async function downloadSaved(id) {
+  const tx = db.transaction(STORE_NAME, 'readonly');
+  const store = tx.objectStore(STORE_NAME);
+  const req = store.get(id);
+  req.onsuccess = async () => {
+    const it = req.result;
+    if (!it) return;
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF();
+    pdf.setFontSize(14);
+    pdf.text('Levantamiento de Válvulas', 10, 10);
+    let y = 20;
+    Object.entries(it).forEach(([k, v]) => {
+      if (k !== 'foto' && k !== 'id') {
+        pdf.text(`${k}: ${v || ''}`, 10, y);
+        y += 8;
+      }
+    });
+    if (it.foto) {
+      try {
+        pdf.addImage(it.foto, 'JPEG', 130, 20, 60, 60);
+      } catch (e) {
+        console.warn('Error al añadir imagen al PDF', e);
+      }
+    }
+    const filename = `Valvula_${it.tag || 'sin_tag'}.pdf`;
+    pdf.save(filename);
+  };
 }
 
-// --- UTILS ---
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+// === Enviar ===
+function sendNow() {
+  const data = readFormData();
+  if (!data.tag) return alert('Debe ingresar el Tag');
+  if (!window.emailjs) return alert('EmailJS no está disponible');
+  emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', {
+    to_email: 'tecnicodeservicios@valserindustriales.com',
+    message: JSON.stringify(data, null, 2)
+  })
+  .then(() => alert('Correo enviado ✅'))
+  .catch(err => alert('Error al enviar: ' + err.text));
 }
 
-window.addEventListener('load', () => {
-  renderSaved();
-});
+// === Enviar pendientes ===
+function sendPending() {
+  alert('Función de envío pendiente puede integrarse luego con sync.');
+}
+
+// === Utilidad ===
+function el(id){return document.getElementById(id);}
