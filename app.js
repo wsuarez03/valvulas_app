@@ -1,112 +1,285 @@
-const DB_NAME = 'valvulasDB';
-const STORE_NAME = 'valvulas';
-let db;
+// Basic offline-first valve recorder app
+// Uses localStorage for simplicity and queues pending sends for EmailJS
 
-window.onload = () => {
-  initDB();
-  document.getElementById('photoInput').addEventListener('change', previewPhoto);
-  document.getElementById('saveBtn').addEventListener('click', saveData);
-  renderSaved();
+const STORAGE_KEYS = {
+  SAVED: 'valvulas_saved_v1',
+  PENDING: 'valvulas_pending_v1'
 };
 
-function initDB() {
-  const request = indexedDB.open(DB_NAME, 1);
-  request.onupgradeneeded = (e) => {
-    db = e.target.result;
-    db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-  };
-  request.onsuccess = (e) => {
-    db = e.target.result;
-    renderSaved();
-  };
-  request.onerror = (e) => console.error('Error al abrir IndexedDB', e);
+const defaultRecipient = 'tecnicodeservicios@valserindustriales.com';
+const el = id => document.getElementById(id);
+
+const photoInput = el('photoInput');
+const photoPreview = el('photoPreview');
+const photoPlacaInput = el('photoPlacaInput');
+const photoPlacaPreview = el('photoPlacaPreview');
+const form = el('valveForm');
+
+// --- CARGA DE FOTOS ---
+photoInput.addEventListener('change', async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const dataUrl = await fileToDataUrl(f);
+  photoPreview.src = dataUrl;
+  photoPreview.style.display = 'block';
+});
+
+photoPlacaInput.addEventListener('change', async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const dataUrl = await fileToDataUrl(f);
+  photoPlacaPreview.src = dataUrl;
+  photoPlacaPreview.style.display = 'block';
+});
+
+async function fileToDataUrl(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
 }
 
-function previewPhoto(e) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = () => document.getElementById('photoPreview').src = reader.result;
-  reader.readAsDataURL(file);
-}
-
-function saveData() {
-  const form = {
-    cliente: document.getElementById('cliente').value,
-    tag: document.getElementById('tag').value,
-    marca: document.getElementById('marca').value,
-    modelo: document.getElementById('modelo').value,
-    tamano: document.getElementById('tamano').value,
-    serie: document.getElementById('serie').value,
-    set: document.getElementById('set').value,
-    ubicacion: document.getElementById('ubicacion').value,
-    fecha: document.getElementById('fecha').value,
-    obs: document.getElementById('obs').value,
-    foto: document.getElementById('photoPreview').src || null,
-    createdAt: new Date().toLocaleString()
+// --- LECTURA Y GUARDADO ---
+function readForm() {
+  return {
+    cliente: el('cliente').value || '',
+    tag: el('tag').value || '',
+    marca: el('marca').value || '',
+    modelo: el('modelo').value || '',
+    tamano: el('tamano').value || '',
+    serie: el('serie').value || '',
+    set: el('set').value || '',
+    ubicacion: el('ubicacion').value || '',
+    fecha: el('fecha').value || (new Date()).toISOString().slice(0, 10),
+    obs: el('obs').value || '',
+    foto: photoPreview.src || '',
+    fotoPlaca: photoPlacaPreview.src || ''
   };
-
-  const tx = db.transaction(STORE_NAME, 'readwrite');
-  tx.objectStore(STORE_NAME).add(form);
-  tx.oncomplete = () => renderSaved();
 }
 
+function saveLocal(entry) {
+  const items = JSON.parse(localStorage.getItem(STORAGE_KEYS.SAVED) || '[]');
+  items.unshift(entry);
+  localStorage.setItem(STORAGE_KEYS.SAVED, JSON.stringify(items));
+  renderSaved();
+}
+
+function addPending(entry) {
+  const items = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING) || '[]');
+  items.unshift(entry);
+  localStorage.setItem(STORAGE_KEYS.PENDING, JSON.stringify(items));
+  renderPending();
+}
+
+// --- BOTONES PRINCIPALES ---
+el('saveBtn').addEventListener('click', () => {
+  const entry = readForm();
+  if (!entry.serie) {
+    alert('Ingrese la serie de la válvula');
+    return;
+  }
+  entry.createdAt = new Date().toISOString();
+  saveLocal(entry);
+  alert('Guardado localmente ✅');
+});
+
+el('pdfBtn').addEventListener('click', async () => {
+  const entry = readForm();
+  if (!entry.serie) {
+    alert('Ingrese la serie de la válvula');
+    return;
+  }
+  const pdfBlob = await generatePdfBlob(entry);
+  downloadBlob(pdfBlob, `Valvula_${entry.serie}.pdf`);
+});
+
+el('sendBtn').addEventListener('click', async () => {
+  const entry = readForm();
+  if (!entry.serie) {
+    alert('Ingrese la serie de la válvula');
+    return;
+  }
+  entry.createdAt = new Date().toISOString();
+  addPending(entry);
+  try {
+    await trySendPending();
+  } catch (e) {
+    console.warn('Encolado para envío', e);
+    alert('Encolado para envío cuando haya internet');
+  }
+});
+
+// --- LISTADO GUARDADOS ---
 function renderSaved() {
-  const tx = db.transaction(STORE_NAME, 'readonly');
-  const req = tx.objectStore(STORE_NAME).getAll();
-  req.onsuccess = () => {
-    const list = req.result;
-    const wrap = document.getElementById('savedList');
-    wrap.innerHTML = '';
-    list.forEach(it => {
-      const li = document.createElement('li');
-      li.innerHTML = `
-        <div>
-          <strong>${it.tag}</strong> — ${it.cliente}
-          <br><small>${it.fecha} • ${it.createdAt}</small>
-        </div>
-        <div>
-          <button onclick='downloadSaved(${it.id})'>Descargar PDF</button>
-          <button onclick='deleteSaved(${it.id})' class='danger'>Eliminar</button>
-        </div>`;
-      wrap.appendChild(li);
-    });
-  };
+  const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.SAVED) || '[]');
+  const wrap = el('savedList');
+  wrap.innerHTML = '';
+  list.forEach((it, index) => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div>
+        <strong>${it.serie}</strong> — ${it.marca} — ${it.ubicacion}
+        <br><small>${it.fecha} ${it.createdAt ? '<span> • ' + it.createdAt + '</span>' : ''}</small>
+      </div>
+      <div style="margin-top: 4px;">
+        <button onclick="downloadSaved('${encodeURIComponent(JSON.stringify(it))}')">📄 Descargar PDF</button>
+        <button onclick="deleteSaved(${index})" style="background-color:#c0392b; color:white;">🗑️ Eliminar</button>
+      </div>`;
+    wrap.appendChild(li);
+  });
 }
 
-function deleteSaved(id) {
-  const tx = db.transaction(STORE_NAME, 'readwrite');
-  tx.objectStore(STORE_NAME).delete(id);
-  tx.oncomplete = () => renderSaved();
+function deleteSaved(index) {
+  if (!confirm('¿Deseas eliminar este registro?')) return;
+  const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.SAVED) || '[]');
+  list.splice(index, 1);
+  localStorage.setItem(STORAGE_KEYS.SAVED, JSON.stringify(list));
+  renderSaved();
 }
 
-async function downloadSaved(id) {
-  const tx = db.transaction(STORE_NAME, 'readonly');
-  const req = tx.objectStore(STORE_NAME).get(id);
-  req.onsuccess = async () => {
-    const data = req.result;
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF();
+window.downloadSaved = async (jsonEnc) => {
+  const it = JSON.parse(decodeURIComponent(jsonEnc));
+  const pdf = await generatePdfBlob(it);
+  downloadBlob(pdf, `Valvula_${it.serie}.pdf`);
+};
 
-    doc.text("Hoja de Vida - Válvula", 10, 10);
-    doc.text(`Cliente: ${data.cliente}`, 10, 20);
-    doc.text(`Tag: ${data.tag}`, 10, 30);
-    doc.text(`Marca: ${data.marca}`, 10, 40);
-    doc.text(`Modelo: ${data.modelo}`, 10, 50);
-    doc.text(`Tamaño: ${data.tamano}`, 10, 60);
-    doc.text(`Serie: ${data.serie}`, 10, 70);
-    doc.text(`Set: ${data.set}`, 10, 80);
-    doc.text(`Ubicación: ${data.ubicacion}`, 10, 90);
-    doc.text(`Fecha: ${data.fecha}`, 10, 100);
-    doc.text(`Obs: ${data.obs}`, 10, 110);
+// --- LISTADO PENDIENTES ---
+function renderPending() {
+  const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING) || '[]');
+  const wrap = el('pendingList');
+  wrap.innerHTML = '';
+  list.forEach((it, idx) => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div><strong>${it.serie}</strong> — ${it.marca} — ${it.ubicacion}</div>
+      <div>
+        <button onclick="removePending(${idx})">Eliminar</button>
+      </div>`;
+    wrap.appendChild(li);
+  });
+}
 
-    if (data.foto) {
-      const img = new Image();
-      img.src = data.foto;
-      await img.decode();
-      doc.addImage(img, 'JPEG', 130, 20, 60, 60);
+window.removePending = (index) => {
+  const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING) || '[]');
+  list.splice(index, 1);
+  localStorage.setItem(STORAGE_KEYS.PENDING, JSON.stringify(list));
+  renderPending();
+};
+
+// --- ENVÍO PENDIENTES ---
+el('sendPendingBtn').addEventListener('click', async () => {
+  try {
+    await trySendPending();
+    alert('Intento de envío completado.');
+  } catch (e) {
+    alert('No se pudo enviar. Permanece en pendientes.');
+  }
+});
+
+async function trySendPending() {
+  const list = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING) || '[]');
+  if (!list.length) {
+    alert('No hay pendientes');
+    return;
+  }
+  for (const entry of [...list].reverse()) {
+    try {
+      await sendViaEmailJS(entry);
+      const current = JSON.parse(localStorage.getItem(STORAGE_KEYS.PENDING) || '[]');
+      const idx = current.findIndex(i => i.createdAt === entry.createdAt && i.serie === entry.serie);
+      if (idx >= 0) {
+        current.splice(idx, 1);
+        localStorage.setItem(STORAGE_KEYS.PENDING, JSON.stringify(current));
+      }
+    } catch (e) {
+      console.error('Error enviando', e);
+      throw e;
     }
-
-    doc.save(`valvula_${data.tag}.pdf`);
-  };
+  }
+  renderPending();
 }
+
+// --- EMAILJS ---
+async function sendViaEmailJS(entry) {
+  const pdfBlob = await generatePdfBlob(entry);
+  const base64 = await blobToBase64(pdfBlob);
+  const templateParams = {
+    to_email: defaultRecipient,
+    to_name: 'Supervisor SST',
+    subject: `Hoja de vida válvula: ${entry.serie}`,
+    message: `Adjunto hoja de vida de la válvula ${entry.serie}`,
+    attachment: base64
+  };
+
+  const serviceID = 'YOUR_EMAILJS_SERVICE_ID';
+  const templateID = 'YOUR_EMAILJS_TEMPLATE_ID';
+  return emailjs.send(serviceID, templateID, templateParams);
+}
+
+// --- GENERAR PDF ---
+async function generatePdfBlob(entry) {
+  const card = document.createElement('div');
+  card.style.width = '800px';
+  card.style.padding = '18px';
+  card.style.background = '#ffffff';
+  card.style.color = '#000';
+  card.innerHTML = `
+    <h2>Válvula - Hoja de Vida</h2>
+    <p><strong>Cliente:</strong> ${entry.cliente}</p>
+    <p><strong>Serie:</strong> ${entry.serie}</p>
+    <p><strong>TAG:</strong> ${entry.tag}</p>
+    <p><strong>Marca:</strong> ${entry.marca}</p>
+    <p><strong>Modelo:</strong> ${entry.modelo}</p>
+    <p><strong>Tamaño:</strong> ${entry.tamano}</p>
+    <p><strong>Set de presión:</strong> ${entry.set}</p>
+    <p><strong>Ubicación:</strong> ${entry.ubicacion}</p>
+    <p><strong>Fecha:</strong> ${entry.fecha}</p>
+    <p><strong>Observaciones:</strong><br/> ${entry.obs}</p>
+    <h3>Foto de la válvula</h3>
+    ${entry.foto ? `<div><img src="${entry.foto}" style="max-width:760px;border:1px solid #ccc"/></div>` : '<p>No disponible</p>'}
+    <h3>Foto de la placa</h3>
+    ${entry.fotoPlaca ? `<div><img src="${entry.fotoPlaca}" style="max-width:760px;border:1px solid #ccc"/></div>` : '<p>No disponible</p>'}
+  `;
+
+  document.body.appendChild(card);
+  const canvas = await html2canvas(card, { scale: 1.5, useCORS: true });
+  document.body.removeChild(card);
+  const imgData = canvas.toDataURL('image/jpeg', 0.95);
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: 'px', format: [canvas.width, canvas.height] });
+  pdf.addImage(imgData, 'JPEG', 0, 0, canvas.width, canvas.height);
+  return pdf.output('blob');
+}
+
+// --- UTILIDADES ---
+function blobToBase64(blob) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(',')[1]);
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+// --- EVENTOS ---
+window.addEventListener('online', () => {
+  trySendPending().catch(() => console.log('No se pudo enviar automático'));
+});
+
+window.addEventListener('load', () => {
+  renderSaved();
+  renderPending();
+});
