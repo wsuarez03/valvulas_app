@@ -6,6 +6,8 @@ const defaultRecipient = 'tecnicodeservicios@valserindustriales.com';
 const el = id => document.getElementById(id);
 const photoInput = el('photoInput');
 const photoPreview = el('photoPreview');
+const photoPlacaInput = el('photoPlacaInput');
+const photoPlacaPreview = el('photoPlacaPreview')
 const form = el('valveForm');
 
 photoInput.addEventListener('change', async (e) => {
@@ -14,6 +16,13 @@ photoInput.addEventListener('change', async (e) => {
   const dataUrl = await fileToDataUrl(f);
   photoPreview.src = dataUrl;
   photoPreview.style.display = 'block';
+});
+photoPlacaInput.addEventListener('change', async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if(!f) return;
+  const dataUrl = await fileToDataUrl(f);
+  photoPlacaPreview.src = dataUrl;
+  photoPlacaPreview.style.display = 'block';
 });
 
 async function fileToDataUrl(file){
@@ -37,9 +46,11 @@ function readForm(){
     ubicacion: el('ubicacion').value || '',
     fecha: el('fecha').value || (new Date()).toISOString().slice(0,10),
     obs: el('obs').value || '',
-    foto: photoPreview.src || ''
+    foto: photoPreview.src || '',
+    fotoPlaca: photoPlacaPreview.src || ''
   };
 }
+
 
 
 function saveLocal(entry){
@@ -190,8 +201,8 @@ async function generatePdfBlob(entry){
   card.style.padding = '18px';
   card.style.background = '#ffffff';
   card.style.color = '#000';
-  card.innerHTML = `
-<h2>Válvula - Hoja de Vida</h2>
+card.innerHTML = `
+  <h2>Válvula - Hoja de Vida</h2>
   <p><strong>Cliente:</strong> ${entry.cliente}</p>
   <p><strong>Serie:</strong> ${entry.serie}</p>  
   <p><strong>TAG:</strong> ${entry.tag}</p>
@@ -202,8 +213,14 @@ async function generatePdfBlob(entry){
   <p><strong>Ubicación:</strong> ${entry.ubicacion}</p>
   <p><strong>Fecha:</strong> ${entry.fecha}</p>
   <p><strong>Observaciones:</strong><br/> ${entry.obs}</p>
-  <div><img src="${entry.foto}" style="max-width:760px;border:1px solid #ccc"/></div>
+
+  <h3>Foto de la válvula</h3>
+  ${entry.foto ? `<div><img src="${entry.foto}" style="max-width:760px;border:1px solid #ccc"/></div>` : '<p>No disponible</p>'}
+
+  <h3>Foto de la placa</h3>
+  ${entry.fotoPlaca ? `<div><img src="${entry.fotoPlaca}" style="max-width:760px;border:1px solid #ccc"/></div>` : '<p>No disponible</p>'}
 `;
+
   document.body.appendChild(card);
   const canvas = await html2canvas(card, {scale:1.5, useCORS:true});
   document.body.removeChild(card);
