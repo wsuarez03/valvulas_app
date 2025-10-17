@@ -202,36 +202,41 @@ async function generatePDF(data) {
     y += 8;
   });
 
+  // --- Pausa para garantizar que las imágenes se carguen ---
+  const ensureImage = base64 => new Promise(resolve => {
+    if (!base64) return resolve(null);
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = base64;
+  });
+
+  const fotoValve = await ensureImage(data.foto);
+  const fotoPlaca = await ensureImage(data.fotoPlaca);
+
   y += 4;
 
-  if (data.foto) {
-    try {
-      pdf.text('Foto de la válvula:', 10, y);
-      y += 6;
-      pdf.addImage(data.foto, 'JPEG', 10, y, 85, 70);
-      y += 80;
-    } catch (e) {
-      console.warn('Error añadiendo foto principal', e);
-    }
+  if (fotoValve) {
+    pdf.text('Foto de la válvula:', 10, y);
+    y += 6;
+    pdf.addImage(fotoValve, 'JPEG', 10, y, 85, 70);
+    y += 80;
   }
 
-  if (data.fotoPlaca) {
-    try {
-      if (y > 240) { // crear nueva página si no cabe
-        pdf.addPage();
-        y = 10;
-      }
-      pdf.text('Foto de la placa:', 10, y);
-      y += 6;
-      pdf.addImage(data.fotoPlaca, 'JPEG', 10, y, 85, 70);
-      y += 80;
-    } catch (e) {
-      console.warn('Error añadiendo foto de placa', e);
+  if (fotoPlaca) {
+    if (y > 240) { // crear nueva página si no cabe
+      pdf.addPage();
+      y = 10;
     }
+    pdf.text('Foto de la placa:', 10, y);
+    y += 6;
+    pdf.addImage(fotoPlaca, 'JPEG', 10, y, 85, 70);
+    y += 80;
   }
 
   pdf.save(`Valvula_${data.serie}.pdf`);
 }
+
 
 // === Descargar desde lista ===
 function downloadSaved(serie) {
