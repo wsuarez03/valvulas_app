@@ -1,3 +1,4 @@
+// === Configuración ===
 const DB_NAME = 'valvulasDB';
 const STORE_NAME = 'hojas';
 let db;
@@ -16,10 +17,11 @@ function initApp() {
 
 // === IndexedDB ===
 function initDB() {
-  const request = indexedDB.open(DB_NAME, 1);
+  const request = indexedDB.open(DB_NAME, 2); // versión 2 por cambio de keyPath
   request.onupgradeneeded = e => {
     const db = e.target.result;
-    db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+    if (db.objectStoreNames.contains(STORE_NAME)) db.deleteObjectStore(STORE_NAME);
+    db.createObjectStore(STORE_NAME, { keyPath: 'serie' }); // clave única por serie
   };
   request.onsuccess = e => {
     db = e.target.result;
@@ -30,8 +32,10 @@ function initDB() {
 
 function addToDB(data, cb) {
   const tx = db.transaction(STORE_NAME, 'readwrite');
-  tx.objectStore(STORE_NAME).add(data);
-  tx.oncomplete = cb;
+  const store = tx.objectStore(STORE_NAME);
+  const req = store.put(data); // put() permite actualizar si ya existe
+  req.onsuccess = () => cb();
+  req.onerror = e => console.error('Error al guardar:', e);
 }
 
 function getAllFromDB(cb) {
@@ -40,10 +44,12 @@ function getAllFromDB(cb) {
   req.onsuccess = () => cb(req.result);
 }
 
-function deleteFromDB(id, cb) {
+function deleteFromDB(serie, cb) {
   const tx = db.transaction(STORE_NAME, 'readwrite');
-  tx.objectStore(STORE_NAME).delete(id);
-  tx.oncomplete = cb;
+  const store = tx.objectStore(STORE_NAME);
+  const req = store.delete(serie);
+  req.onsuccess = () => cb();
+  req.onerror = e => console.error('Error al eliminar:', e);
 }
 
 // === Foto preview ===
@@ -60,12 +66,14 @@ function handlePhoto(e, previewId) {
 // === Guardar local ===
 function saveLocal() {
   const data = readFormData();
-  if (!data.serie) return alert('Debe ingresar la Serie (campo obligatorio)');
-  addToDB(data, renderSaved);
-  alert('Guardado localmente ✅');
-  document.getElementById('valveForm').reset();
-  document.getElementById('photoPreview').src = '';
-  document.getElementById('photoPlacaPreview').src = '';
+  if (!data.serie) return alert('⚠️ Debe ingresar la Serie (campo obligatorio)');
+  addToDB(data, () => {
+    alert('Guardado localmente ✅');
+    renderSaved();
+    document.getElementById('valveForm').reset();
+    document.getElementById('photoPreview').src = '';
+    document.getElementById('photoPlacaPreview').src = '';
+  });
 }
 
 function readFormData() {
@@ -75,7 +83,7 @@ function readFormData() {
     marca: el('marca').value,
     modelo: el('modelo').value,
     tamano: el('tamano').value,
-    serie: el('serie').value,
+    serie: el('serie').value.trim(),
     set: el('set').value,
     ubicacion: el('ubicacion').value,
     fecha: el('fecha').value,
@@ -104,8 +112,8 @@ function renderSaved() {
           <small>${it.fecha || ''} • ${it.createdAt || ''}</small>
         </div>
         <div>
-          <button onclick='downloadSaved(${it.id})'>📄 PDF</button>
-          <button onclick='deleteSaved(${it.id})' style="background:#ef4444;color:white">🗑</button>
+          <button onclick='downloadSaved("${it.serie}")'>📄 PDF</button>
+          <button onclick='deleteSaved("${it.serie}")' style="background:#ef4444;color:white">🗑</button>
         </div>
       `;
       wrap.appendChild(li);
@@ -114,9 +122,9 @@ function renderSaved() {
 }
 
 // === Eliminar ===
-function deleteSaved(id) {
+function deleteSaved(serie) {
   if (!confirm('¿Eliminar esta hoja de vida local?')) return;
-  deleteFromDB(id, renderSaved);
+  deleteFromDB(serie, renderSaved);
 }
 
 // === PDF desde formulario ===
@@ -155,13 +163,13 @@ async function generatePDF(data) {
     y += 8;
   });
 
-  // Espacio para fotos
   y += 4;
+
   if (data.foto) {
     try {
       pdf.text('Foto de la válvula:', 10, y);
       y += 6;
-      pdf.addImage(data.foto, 'JPEG', 10, y, 90, 70);
+      pdf.addImage(data.foto, 'JPEG', 10, y, 85, 70);
       y += 80;
     } catch (e) {
       console.warn('Error añadiendo foto principal', e);
@@ -170,9 +178,13 @@ async function generatePDF(data) {
 
   if (data.fotoPlaca) {
     try {
+      if (y > 240) { // crear nueva página si no cabe
+        pdf.addPage();
+        y = 10;
+      }
       pdf.text('Foto de la placa:', 10, y);
       y += 6;
-      pdf.addImage(data.fotoPlaca, 'JPEG', 10, y, 90, 70);
+      pdf.addImage(data.fotoPlaca, 'JPEG', 10, y, 85, 70);
       y += 80;
     } catch (e) {
       console.warn('Error añadiendo foto de placa', e);
@@ -183,9 +195,9 @@ async function generatePDF(data) {
 }
 
 // === Descargar desde lista ===
-function downloadSaved(id) {
+function downloadSaved(serie) {
   const tx = db.transaction(STORE_NAME, 'readonly');
-  const req = tx.objectStore(STORE_NAME).get(id);
+  const req = tx.objectStore(STORE_NAME).get(serie);
   req.onsuccess = () => {
     const data = req.result;
     if (data) generatePDF(data);
