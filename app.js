@@ -52,21 +52,59 @@ function deleteFromDB(serie, cb) {
   req.onerror = e => console.error('Error al eliminar:', e);
 }
 
+function compressImage(base64, maxWidth = 800, maxHeight = 800) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let { width, height } = img;
+      if (width > height && width > maxWidth) {
+        height *= maxWidth / width;
+        width = maxWidth;
+      } else if (height > maxHeight) {
+        width *= maxHeight / height;
+        height = maxHeight;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.8)); // calidad 80%
+    };
+    img.src = base64;
+  });
+}
+
+
 // === Foto preview ===
 function handlePhoto(e, previewId) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = ev => {
-    document.getElementById(previewId).src = ev.target.result;
+  reader.onload = async ev => {
+    const compressed = await compressImage(ev.target.result);
+    const img = document.getElementById(previewId);
+    img.src = compressed;
+    img.dataset.ready = "true";
   };
   reader.readAsDataURL(file);
 }
+
+
+
 
 // === Guardar local ===
 function saveLocal() {
   const data = readFormData();
   if (!data.serie) return alert('⚠️ Debe ingresar la Serie (campo obligatorio)');
+
+  const fotoListas = [...document.querySelectorAll('img[id$="Preview"]')]
+    .every(img => !img.src || img.dataset.ready === "true");
+
+  if (!fotoListas) {
+    return alert('⏳ Espera a que se carguen completamente las fotos antes de guardar.');
+  }
+
   addToDB(data, () => {
     alert('Guardado localmente ✅');
     renderSaved();
@@ -75,6 +113,7 @@ function saveLocal() {
     document.getElementById('photoPlacaPreview').src = '';
   });
 }
+
 
 function readFormData() {
   return {
