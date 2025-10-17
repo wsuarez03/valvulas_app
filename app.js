@@ -269,3 +269,73 @@ function sendPending() {
 
 // === Utilidad ===
 function el(id){return document.getElementById(id);}
+
+async function shareAllPdfs() {
+  getAllFromDB(async (list) => {
+    if (!list.length) return alert('No hay hojas guardadas para compartir.');
+
+    const files = [];
+    for (const it of list) {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF();
+      let y = 10;
+
+      pdf.setFontSize(16);
+      pdf.text('Levantamiento de Válvulas', 10, y);
+      y += 10;
+      pdf.setFontSize(12);
+
+      const fields = [
+        ['Cliente', it.cliente],
+        ['Serie', it.serie],
+        ['TAG', it.tag],
+        ['Marca', it.marca],
+        ['Modelo', it.modelo],
+        ['Tamaño', it.tamano],
+        ['Set de presión', it.set],
+        ['Ubicación', it.ubicacion],
+        ['Fecha', it.fecha],
+        ['Observaciones', it.obs]
+      ];
+
+      fields.forEach(([label, value]) => {
+        pdf.text(`${label}: ${value || ''}`, 10, y);
+        y += 8;
+      });
+
+      if (it.foto) {
+        try { pdf.addImage(it.foto, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
+      }
+      if (it.fotoPlaca) {
+        if (y > 240) { pdf.addPage(); y = 10; }
+        try { pdf.addImage(it.fotoPlaca, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
+      }
+
+      const blob = pdf.output('blob');
+      files.push(new File([blob], `Valvula_${it.serie}.pdf`, { type: 'application/pdf' }));
+    }
+
+    // Verificar soporte del navegador
+    if (navigator.canShare && navigator.canShare({ files })) {
+      try {
+        await navigator.share({
+          title: 'Hojas de vida de válvulas',
+          text: 'Adjunto los registros generados desde la app.',
+          files
+        });
+        alert('📤 Archivos compartidos correctamente.');
+      } catch (err) {
+        console.error('Error al compartir:', err);
+        alert('❌ No se pudo compartir.');
+      }
+    } else {
+      alert('⚠️ El navegador no soporta compartir archivos directamente.');
+    }
+  });
+}
+
+// Asignar evento al botón (cuando el DOM esté listo)
+window.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('shareAllBtn');
+  if (btn) btn.addEventListener('click', shareAllPdfs);
+});
