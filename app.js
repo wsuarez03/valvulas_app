@@ -7,21 +7,24 @@ window.addEventListener('DOMContentLoaded', initApp);
 
 function initApp() {
   initDB();
-  document.getElementById('photoInput').addEventListener('change', e => handlePhoto(e, 'photoPreview'));
-  document.getElementById('photoPlacaInput').addEventListener('change', e => handlePhoto(e, 'photoPlacaPreview'));
-  document.getElementById('saveBtn').addEventListener('click', saveLocal);
-  document.getElementById('pdfBtn').addEventListener('click', generatePDFfromForm);
-  document.getElementById('sendBtn').addEventListener('click', sendNow);
-  document.getElementById('sendPendingBtn').addEventListener('click', sendPending);
+  el('photoInput').addEventListener('change', e => handlePhoto(e, 'photoPreview'));
+  el('photoPlacaInput').addEventListener('change', e => handlePhoto(e, 'photoPlacaPreview'));
+  el('saveBtn').addEventListener('click', saveLocal);
+
+  // acciones grupales
+  el('pdfSelectedBtn').addEventListener('click', generateSelectedPDFs);
+  el('shareSelectedBtn').addEventListener('click', shareSelected);
+  el('deleteSelectedBtn').addEventListener('click', deleteSelected);
+  el('exportSelectedPhotosBtn').addEventListener('click', exportSelectedPhotos);
 }
 
 // === IndexedDB ===
 function initDB() {
-  const request = indexedDB.open(DB_NAME, 2); // versión 2 por cambio de keyPath
+  const request = indexedDB.open(DB_NAME, 2);
   request.onupgradeneeded = e => {
     const db = e.target.result;
     if (db.objectStoreNames.contains(STORE_NAME)) db.deleteObjectStore(STORE_NAME);
-    db.createObjectStore(STORE_NAME, { keyPath: 'serie' }); // clave única por serie
+    db.createObjectStore(STORE_NAME, { keyPath: 'serie' });
   };
   request.onsuccess = e => {
     db = e.target.result;
@@ -33,9 +36,8 @@ function initDB() {
 function addToDB(data, cb) {
   const tx = db.transaction(STORE_NAME, 'readwrite');
   const store = tx.objectStore(STORE_NAME);
-  const req = store.put(data); // put() permite actualizar si ya existe
+  const req = store.put(data);
   req.onsuccess = () => cb();
-  req.onerror = e => console.error('Error al guardar:', e);
 }
 
 function getAllFromDB() {
@@ -48,79 +50,40 @@ function getAllFromDB() {
   });
 }
 
-
-
-
 function deleteFromDB(serie, cb) {
   const tx = db.transaction(STORE_NAME, 'readwrite');
   const store = tx.objectStore(STORE_NAME);
   const req = store.delete(serie);
   req.onsuccess = () => cb();
-  req.onerror = e => console.error('Error al eliminar:', e);
 }
 
-function compressImage(base64, maxWidth = 800, maxHeight = 800) {
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      let { width, height } = img;
-      if (width > height && width > maxWidth) {
-        height *= maxWidth / width;
-        width = maxWidth;
-      } else if (height > maxHeight) {
-        width *= maxHeight / height;
-        height = maxHeight;
-      }
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL('image/jpeg', 0.8)); // calidad 80%
-    };
-    img.src = base64;
-  });
-}
-
+// === Utilidad ===
+function el(id) { return document.getElementById(id); }
 
 // === Foto preview ===
 function handlePhoto(e, previewId) {
   const file = e.target.files[0];
   if (!file) return;
   const reader = new FileReader();
-  reader.onload = async ev => {
-    const compressed = await compressImage(ev.target.result);
-    const img = document.getElementById(previewId);
-    img.src = compressed;
-    img.dataset.ready = "true";
+  reader.onload = ev => {
+    const img = el(previewId);
+    img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
 }
 
-
-
-
-// === Guardar local ===
+// === Guardar ===
 function saveLocal() {
   const data = readFormData();
-  if (!data.serie) return alert('⚠️ Debe ingresar la Serie (campo obligatorio)');
-
-  const fotoListas = [...document.querySelectorAll('img[id$="Preview"]')]
-    .every(img => !img.src || img.dataset.ready === "true");
-
-  if (!fotoListas) {
-    return alert('⏳ Espera a que se carguen completamente las fotos antes de guardar.');
-  }
-
+  if (!data.serie) return alert('⚠️ Ingrese la Serie.');
   addToDB(data, () => {
-    alert('Guardado localmente ✅');
+    alert('✅ Guardado localmente');
     renderSaved();
-    document.getElementById('valveForm').reset();
-    document.getElementById('photoPreview').src = '';
-    document.getElementById('photoPlacaPreview').src = '';
+    el('valveForm').reset();
+    el('photoPreview').src = '';
+    el('photoPlacaPreview').src = '';
   });
 }
-
 
 function readFormData() {
   return {
@@ -134,17 +97,15 @@ function readFormData() {
     ubicacion: el('ubicacion').value,
     fecha: el('fecha').value,
     obs: el('obs').value,
-    foto: document.getElementById('photoPreview').src || '',
-    fotoPlaca: document.getElementById('photoPlacaPreview').src || '',
+    foto: el('photoPreview').src || '',
+    fotoPlaca: el('photoPlacaPreview').src || '',
     createdAt: new Date().toLocaleString()
   };
 }
 
-// === Render listado local ===
+// === Render listado ===
 async function renderSaved() {
   const wrap = el('savedList');
-  wrap.innerHTML = '<li>Cargando...</li>';
-
   const list = await getAllFromDB();
   wrap.innerHTML = '';
 
@@ -156,35 +117,36 @@ async function renderSaved() {
   list.forEach(it => {
     const li = document.createElement('li');
     li.innerHTML = `
-      <div>
-        <strong>${it.serie}</strong> <br>
-        <small>${it.fecha || ''} • ${it.createdAt || ''}</small>
-      </div>
-      <div>
-        <button onclick='downloadSaved("${it.serie}")'>📄 PDF</button>
-        <button onclick='deleteSaved("${it.serie}")' style="background:#ef4444;color:white">🗑</button>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <input type="checkbox" class="selectItem" value="${it.serie}">
+        <div>
+          <strong>${it.serie}</strong><br>
+          <small>${it.fecha || ''}</small>
+        </div>
       </div>
     `;
     wrap.appendChild(li);
   });
 }
 
-
-
-// === Eliminar ===
-function deleteSaved(serie) {
-  if (!confirm('¿Eliminar esta hoja de vida local?')) return;
-  deleteFromDB(serie, renderSaved);
+// === Obtener seleccionadas ===
+function getSelectedSeries() {
+  return [...document.querySelectorAll('.selectItem:checked')].map(chk => chk.value);
 }
 
-// === PDF desde formulario ===
-function generatePDFfromForm() {
-  const data = readFormData();
-  if (!data.serie) return alert('Debe ingresar la Serie antes de generar el PDF');
-  generatePDF(data);
+// === PDF de seleccionadas ===
+async function generateSelectedPDFs() {
+  const selected = getSelectedSeries();
+  if (!selected.length) return alert('Selecciona al menos una hoja.');
+  const list = await getAllFromDB();
+  const selectedData = list.filter(it => selected.includes(it.serie));
+
+  for (const data of selectedData) {
+    await generatePDF(data);
+  }
 }
 
-// === Generar PDF con ambas fotos ===
+// === Generar PDF individual ===
 async function generatePDF(data) {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF();
@@ -213,162 +175,109 @@ async function generatePDF(data) {
     y += 8;
   });
 
-  // --- Pausa para garantizar que las imágenes se carguen ---
-  const ensureImage = base64 => new Promise(resolve => {
-    if (!base64) return resolve(null);
-    const img = new Image();
-    img.onload = () => resolve(img);
-    img.onerror = () => resolve(null);
-    img.src = base64;
-  });
-
-  const fotoValve = await ensureImage(data.foto);
-  const fotoPlaca = await ensureImage(data.fotoPlaca);
-
-  y += 4;
-
-  if (fotoValve) {
-    pdf.text('Foto de la válvula:', 10, y);
-    y += 6;
-    pdf.addImage(fotoValve, 'JPEG', 10, y, 85, 70);
-    y += 80;
+  if (data.foto) {
+    try { pdf.addImage(data.foto, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
   }
-
-  if (fotoPlaca) {
-    if (y > 240) { // crear nueva página si no cabe
-      pdf.addPage();
-      y = 10;
-    }
-    pdf.text('Foto de la placa:', 10, y);
-    y += 6;
-    pdf.addImage(fotoPlaca, 'JPEG', 10, y, 85, 70);
-    y += 80;
+  if (data.fotoPlaca) {
+    if (y > 240) { pdf.addPage(); y = 10; }
+    try { pdf.addImage(data.fotoPlaca, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
   }
 
   pdf.save(`Valvula_${data.serie}.pdf`);
 }
 
+// === Eliminar seleccionadas ===
+async function deleteSelected() {
+  const selected = getSelectedSeries();
+  if (!selected.length) return alert('Selecciona al menos una hoja.');
+  if (!confirm(`¿Eliminar ${selected.length} hoja(s)?`)) return;
 
-// === Descargar desde lista ===
-function downloadSaved(serie) {
-  const tx = db.transaction(STORE_NAME, 'readonly');
-  const req = tx.objectStore(STORE_NAME).get(serie);
-  req.onsuccess = () => {
-    const data = req.result;
-    if (data) generatePDF(data);
-  };
+  for (const serie of selected) {
+    await new Promise(res => deleteFromDB(serie, res));
+  }
+  alert('🗑 Eliminadas correctamente');
+  renderSaved();
 }
 
-// === Envío pendientes (futuro) ===
-function sendPending() {
-  alert('Función de envío pendiente (se puede integrar luego).');
-}
+// === Compartir seleccionadas ===
+async function shareSelected() {
+  const selected = getSelectedSeries();
+  if (!selected.length) return alert('Selecciona al menos una hoja.');
+  const list = await getAllFromDB();
+  const selectedData = list.filter(it => selected.includes(it.serie));
 
-// === Utilidad ===
-function el(id){return document.getElementById(id);}
+  const files = [];
+  for (const it of selectedData) {
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF();
+    let y = 10;
 
-async function shareAllPdfs() {
-  getAllFromDB(async (list) => {
-    if (!list.length) return alert('No hay hojas guardadas para compartir.');
+    pdf.setFontSize(16);
+    pdf.text('Levantamiento de Válvulas', 10, y);
+    y += 10;
+    pdf.setFontSize(12);
 
-    const files = [];
-    for (const it of list) {
-      const { jsPDF } = window.jspdf;
-      const pdf = new jsPDF();
-      let y = 10;
+    const fields = [
+      ['Cliente', it.cliente],
+      ['Serie', it.serie],
+      ['TAG', it.tag],
+      ['Marca', it.marca],
+      ['Modelo', it.modelo],
+      ['Tamaño', it.tamano],
+      ['Set de presión', it.set],
+      ['Ubicación', it.ubicacion],
+      ['Fecha', it.fecha],
+      ['Observaciones', it.obs]
+    ];
+    fields.forEach(([label, value]) => {
+      pdf.text(`${label}: ${value || ''}`, 10, y);
+      y += 8;
+    });
 
-      pdf.setFontSize(16);
-      pdf.text('Levantamiento de Válvulas', 10, y);
-      y += 10;
-      pdf.setFontSize(12);
-
-      const fields = [
-        ['Cliente', it.cliente],
-        ['Serie', it.serie],
-        ['TAG', it.tag],
-        ['Marca', it.marca],
-        ['Modelo', it.modelo],
-        ['Tamaño', it.tamano],
-        ['Set de presión', it.set],
-        ['Ubicación', it.ubicacion],
-        ['Fecha', it.fecha],
-        ['Observaciones', it.obs]
-      ];
-
-      fields.forEach(([label, value]) => {
-        pdf.text(`${label}: ${value || ''}`, 10, y);
-        y += 8;
-      });
-
-      if (it.foto) {
-        try { pdf.addImage(it.foto, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
-      }
-      if (it.fotoPlaca) {
-        if (y > 240) { pdf.addPage(); y = 10; }
-        try { pdf.addImage(it.fotoPlaca, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
-      }
-
-      const blob = pdf.output('blob');
-      files.push(new File([blob], `Valvula_${it.serie}.pdf`, { type: 'application/pdf' }));
+    if (it.foto) try { pdf.addImage(it.foto, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
+    if (it.fotoPlaca) {
+      if (y > 240) { pdf.addPage(); y = 10; }
+      try { pdf.addImage(it.fotoPlaca, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
     }
 
-    // Verificar soporte del navegador
-    if (navigator.canShare && navigator.canShare({ files })) {
-      try {
-        await navigator.share({
-          title: 'Hojas de vida de válvulas',
-          text: 'Adjunto los registros generados desde la app.',
-          files
-        });
-        alert('📤 Archivos compartidos correctamente.');
-      } catch (err) {
-        console.error('Error al compartir:', err);
-        alert('❌ No se pudo compartir.');
-      }
-    } else {
-      alert('⚠️ El navegador no soporta compartir archivos directamente.');
-    }
-  });
-}
-
-// Asignar evento al botón (cuando el DOM esté listo)
-window.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('shareAllBtn');
-  if (btn) btn.addEventListener('click', shareAllPdfs);
-});
-
-
-async function exportarFotos() {
-  const zip = new JSZip();
-  const items = await getAllFromDB();
-
-  if (!items.length) {
-    alert("No hay fotos guardadas.");
-    return;
+    const blob = pdf.output('blob');
+    files.push(new File([blob], `Valvula_${it.serie}.pdf`, { type: 'application/pdf' }));
   }
 
+  if (navigator.canShare && navigator.canShare({ files })) {
+    await navigator.share({
+      title: 'Hojas de vida seleccionadas',
+      text: 'Adjunto registros seleccionados.',
+      files
+    });
+  } else {
+    alert('⚠️ El navegador no soporta compartir archivos.');
+  }
+}
+
+// === Exportar fotos seleccionadas ===
+async function exportSelectedPhotos() {
+  const selected = getSelectedSeries();
+  if (!selected.length) return alert('Selecciona al menos una hoja.');
+  const list = await getAllFromDB();
+  const selectedData = list.filter(it => selected.includes(it.serie));
+
+  const zip = new JSZip();
   let count = 0;
-  for (const it of items) {
+
+  for (const it of selectedData) {
     if (it.foto) {
-      const fotoData = it.foto.split(",")[1];
-      zip.file(`Valvula_${it.serie}_valvula.jpg`, fotoData, { base64: true });
+      zip.file(`Valvula_${it.serie}_valvula.jpg`, it.foto.split(",")[1], { base64: true });
       count++;
     }
     if (it.fotoPlaca) {
-      const fotoPlacaData = it.fotoPlaca.split(",")[1];
-      zip.file(`Valvula_${it.serie}_placa.jpg`, fotoPlacaData, { base64: true });
+      zip.file(`Valvula_${it.serie}_placa.jpg`, it.fotoPlaca.split(",")[1], { base64: true });
       count++;
     }
   }
 
-  if (count === 0) {
-    alert("No se encontraron fotos guardadas.");
-    return;
-  }
-
+  if (!count) return alert("No hay fotos para exportar.");
   const blob = await zip.generateAsync({ type: "blob" });
-  saveAs(blob, "fotos_valvulas.zip");
-  alert(`Descarga completa: ${count} fotos exportadas en un ZIP.`);
+  saveAs(blob, "fotos_valvulas_seleccionadas.zip");
+  alert(`📸 Se exportaron ${count} fotos.`);
 }
-
-
