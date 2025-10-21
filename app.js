@@ -3,41 +3,35 @@ const DB_NAME = 'valvulasDB';
 const STORE_NAME = 'hojas';
 let db;
 
-window.addEventListener('DOMContentLoaded', initApp);
+// === Iniciar ===
+window.addEventListener('DOMContentLoaded', async () => {
+  await initDB();
+  renderSaved();
 
-function initApp() {
-  initDB();
-  el('photoInput').addEventListener('change', e => handlePhoto(e, 'photoPreview'));
-  el('photoPlacaInput').addEventListener('change', e => handlePhoto(e, 'photoPlacaPreview'));
-  el('saveBtn').addEventListener('click', saveLocal);
-
-  // acciones grupales
-  el('pdfSelectedBtn').addEventListener('click', generateSelectedPDFs);
-  el('shareSelectedBtn').addEventListener('click', shareSelected);
-  el('deleteSelectedBtn').addEventListener('click', deleteSelected);
-  el('exportSelectedPhotosBtn').addEventListener('click', exportSelectedPhotos);
-}
+  document.getElementById('pdfSelectedBtn').addEventListener('click', generateSelectedPDFs);
+  document.getElementById('shareSelectedBtn').addEventListener('click', shareSelected);
+  document.getElementById('deleteSelectedBtn').addEventListener('click', deleteSelected);
+  document.getElementById('exportSelectedPhotosBtn').addEventListener('click', exportSelectedPhotos);
+});
 
 // === IndexedDB ===
 function initDB() {
-  const request = indexedDB.open(DB_NAME, 2);
-  request.onupgradeneeded = e => {
-    const db = e.target.result;
-    if (db.objectStoreNames.contains(STORE_NAME)) db.deleteObjectStore(STORE_NAME);
-    db.createObjectStore(STORE_NAME, { keyPath: 'serie' });
-  };
-  request.onsuccess = e => {
-    db = e.target.result;
-    renderSaved();
-  };
-  request.onerror = e => console.error('IndexedDB error:', e);
-}
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 2);
 
-function addToDB(data, cb) {
-  const tx = db.transaction(STORE_NAME, 'readwrite');
-  const store = tx.objectStore(STORE_NAME);
-  const req = store.put(data);
-  req.onsuccess = () => cb();
+    request.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (db.objectStoreNames.contains(STORE_NAME)) db.deleteObjectStore(STORE_NAME);
+      db.createObjectStore(STORE_NAME, { keyPath: 'serie' });
+    };
+
+    request.onsuccess = e => {
+      db = e.target.result;
+      resolve();
+    };
+
+    request.onerror = e => reject(e);
+  });
 }
 
 function getAllFromDB() {
@@ -50,62 +44,19 @@ function getAllFromDB() {
   });
 }
 
-function deleteFromDB(serie, cb) {
-  const tx = db.transaction(STORE_NAME, 'readwrite');
-  const store = tx.objectStore(STORE_NAME);
-  const req = store.delete(serie);
-  req.onsuccess = () => cb();
-}
-
-// === Utilidad ===
-function el(id) { return document.getElementById(id); }
-
-// === Foto preview ===
-function handlePhoto(e, previewId) {
-  const file = e.target.files[0];
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = ev => {
-    const img = el(previewId);
-    img.src = ev.target.result;
-  };
-  reader.readAsDataURL(file);
-}
-
-// === Guardar ===
-function saveLocal() {
-  const data = readFormData();
-  if (!data.serie) return alert('⚠️ Ingrese la Serie.');
-  addToDB(data, () => {
-    alert('✅ Guardado localmente');
-    renderSaved();
-    el('valveForm').reset();
-    el('photoPreview').src = '';
-    el('photoPlacaPreview').src = '';
+function deleteFromDB(serie) {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.delete(serie);
+    req.onsuccess = () => resolve();
+    req.onerror = e => reject(e);
   });
 }
 
-function readFormData() {
-  return {
-    cliente: el('cliente').value,
-    tag: el('tag').value,
-    marca: el('marca').value,
-    modelo: el('modelo').value,
-    tamano: el('tamano').value,
-    serie: el('serie').value.trim(),
-    set: el('set').value,
-    ubicacion: el('ubicacion').value,
-    fecha: el('fecha').value,
-    obs: el('obs').value,
-    foto: el('photoPreview').src || '',
-    fotoPlaca: el('photoPlacaPreview').src || '',
-    createdAt: new Date().toLocaleString()
-  };
-}
-
-// === Render listado ===
+// === Render ===
 async function renderSaved() {
-  const wrap = el('savedList');
+  const wrap = document.getElementById('savedList');
   const list = await getAllFromDB();
   wrap.innerHTML = '';
 
@@ -116,46 +67,33 @@ async function renderSaved() {
 
   list.forEach(it => {
     const li = document.createElement('li');
-    li.style.display = 'flex';
-    li.style.alignItems = 'center';
-    li.style.justifyContent = 'space-between';
-    li.style.padding = '8px';
-    li.style.marginBottom = '6px';
-    li.style.background = 'rgba(255,255,255,0.05)';
-    li.style.borderRadius = '6px';
-
+    li.style = 'display:flex;align-items:center;gap:8px;margin:4px 0;';
     li.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;">
-        <input type="checkbox" class="selectItem" value="${it.serie}" style="transform:scale(1.3);cursor:pointer;">
-        <div>
-          <strong>${it.serie}</strong><br>
-          <small>${it.fecha || ''}</small>
-        </div>
+      <input type="checkbox" class="selectItem" value="${it.serie}">
+      <div>
+        <strong>${it.serie}</strong><br>
+        <small>${it.fecha || ''}</small>
       </div>
     `;
-
     wrap.appendChild(li);
   });
 }
 
-// === Obtener seleccionadas ===
+// === Utilidad ===
 function getSelectedSeries() {
   return [...document.querySelectorAll('.selectItem:checked')].map(chk => chk.value);
 }
 
-// === PDF de seleccionadas ===
+// === Generar PDFs seleccionados ===
 async function generateSelectedPDFs() {
   const selected = getSelectedSeries();
   if (!selected.length) return alert('Selecciona al menos una hoja.');
-  const list = await getAllFromDB();
-  const selectedData = list.filter(it => selected.includes(it.serie));
+  const all = await getAllFromDB();
+  const dataSel = all.filter(it => selected.includes(it.serie));
 
-  for (const data of selectedData) {
-    await generatePDF(data);
-  }
+  for (const data of dataSel) await generatePDF(data);
 }
 
-// === Generar PDF individual ===
 async function generatePDF(data) {
   const { jsPDF } = window.jspdf;
   const pdf = new jsPDF();
@@ -164,7 +102,6 @@ async function generatePDF(data) {
   pdf.setFontSize(16);
   pdf.text('Levantamiento de Válvulas', 10, y);
   y += 10;
-  pdf.setFontSize(12);
 
   const fields = [
     ['Cliente', data.cliente],
@@ -179,18 +116,14 @@ async function generatePDF(data) {
     ['Observaciones', data.obs]
   ];
 
-  fields.forEach(([label, value]) => {
-    pdf.text(`${label}: ${value || ''}`, 10, y);
+  pdf.setFontSize(12);
+  fields.forEach(([k, v]) => {
+    pdf.text(`${k}: ${v || ''}`, 10, y);
     y += 8;
   });
 
-  if (data.foto) {
-    try { pdf.addImage(data.foto, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
-  }
-  if (data.fotoPlaca) {
-    if (y > 240) { pdf.addPage(); y = 10; }
-    try { pdf.addImage(data.fotoPlaca, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
-  }
+  if (data.foto) try { pdf.addImage(data.foto, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
+  if (data.fotoPlaca) try { pdf.addImage(data.fotoPlaca, 'JPEG', 110, 10, 85, 70); } catch {}
 
   pdf.save(`Valvula_${data.serie}.pdf`);
 }
@@ -201,10 +134,8 @@ async function deleteSelected() {
   if (!selected.length) return alert('Selecciona al menos una hoja.');
   if (!confirm(`¿Eliminar ${selected.length} hoja(s)?`)) return;
 
-  for (const serie of selected) {
-    await new Promise(res => deleteFromDB(serie, res));
-  }
-  alert('🗑 Eliminadas correctamente');
+  for (const serie of selected) await deleteFromDB(serie);
+  alert('🗑 Eliminadas correctamente.');
   renderSaved();
 }
 
@@ -212,53 +143,27 @@ async function deleteSelected() {
 async function shareSelected() {
   const selected = getSelectedSeries();
   if (!selected.length) return alert('Selecciona al menos una hoja.');
-  const list = await getAllFromDB();
-  const selectedData = list.filter(it => selected.includes(it.serie));
+  const all = await getAllFromDB();
+  const dataSel = all.filter(it => selected.includes(it.serie));
 
+  const { jsPDF } = window.jspdf;
   const files = [];
-  for (const it of selectedData) {
-    const { jsPDF } = window.jspdf;
+
+  for (const d of dataSel) {
     const pdf = new jsPDF();
     let y = 10;
-
-    pdf.setFontSize(16);
-    pdf.text('Levantamiento de Válvulas', 10, y);
+    pdf.setFontSize(14);
+    pdf.text(`Hoja ${d.serie}`, 10, y);
     y += 10;
-    pdf.setFontSize(12);
-
-    const fields = [
-      ['Cliente', it.cliente],
-      ['Serie', it.serie],
-      ['TAG', it.tag],
-      ['Marca', it.marca],
-      ['Modelo', it.modelo],
-      ['Tamaño', it.tamano],
-      ['Set de presión', it.set],
-      ['Ubicación', it.ubicacion],
-      ['Fecha', it.fecha],
-      ['Observaciones', it.obs]
-    ];
-    fields.forEach(([label, value]) => {
-      pdf.text(`${label}: ${value || ''}`, 10, y);
-      y += 8;
-    });
-
-    if (it.foto) try { pdf.addImage(it.foto, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
-    if (it.fotoPlaca) {
-      if (y > 240) { pdf.addPage(); y = 10; }
-      try { pdf.addImage(it.fotoPlaca, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
-    }
-
+    pdf.text(`Cliente: ${d.cliente}`, 10, y);
+    y += 10;
+    if (d.foto) try { pdf.addImage(d.foto, 'JPEG', 10, y, 85, 70); y += 80; } catch {}
     const blob = pdf.output('blob');
-    files.push(new File([blob], `Valvula_${it.serie}.pdf`, { type: 'application/pdf' }));
+    files.push(new File([blob], `Valvula_${d.serie}.pdf`, { type: 'application/pdf' }));
   }
 
   if (navigator.canShare && navigator.canShare({ files })) {
-    await navigator.share({
-      title: 'Hojas de vida seleccionadas',
-      text: 'Adjunto registros seleccionados.',
-      files
-    });
+    await navigator.share({ title: 'Hojas de vida', text: 'Adjunto registros.', files });
   } else {
     alert('⚠️ El navegador no soporta compartir archivos.');
   }
@@ -268,25 +173,25 @@ async function shareSelected() {
 async function exportSelectedPhotos() {
   const selected = getSelectedSeries();
   if (!selected.length) return alert('Selecciona al menos una hoja.');
-  const list = await getAllFromDB();
-  const selectedData = list.filter(it => selected.includes(it.serie));
+  const all = await getAllFromDB();
+  const dataSel = all.filter(it => selected.includes(it.serie));
 
   const zip = new JSZip();
   let count = 0;
 
-  for (const it of selectedData) {
-    if (it.foto) {
-      zip.file(`Valvula_${it.serie}_valvula.jpg`, it.foto.split(",")[1], { base64: true });
+  for (const d of dataSel) {
+    if (d.foto) {
+      zip.file(`${d.serie}_valvula.jpg`, d.foto.split(',')[1], { base64: true });
       count++;
     }
-    if (it.fotoPlaca) {
-      zip.file(`Valvula_${it.serie}_placa.jpg`, it.fotoPlaca.split(",")[1], { base64: true });
+    if (d.fotoPlaca) {
+      zip.file(`${d.serie}_placa.jpg`, d.fotoPlaca.split(',')[1], { base64: true });
       count++;
     }
   }
 
-  if (!count) return alert("No hay fotos para exportar.");
-  const blob = await zip.generateAsync({ type: "blob" });
-  saveAs(blob, "fotos_valvulas_seleccionadas.zip");
+  if (!count) return alert('No hay fotos para exportar.');
+  const blob = await zip.generateAsync({ type: 'blob' });
+  saveAs(blob, 'fotos_valvulas.zip');
   alert(`📸 Se exportaron ${count} fotos.`);
 }
