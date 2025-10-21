@@ -327,42 +327,37 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 
-// === Exportar fotos guardadas ===
-function exportarFotos() {
-  getAllFromDB(list => {
-    if (!list.length) {
-      alert('⚠️ No hay hojas guardadas con fotos.');
-      return;
+async function exportarFotos() {
+  const zip = new JSZip();
+  const items = await getAllFromDB();
+
+  if (!items.length) {
+    alert("No hay fotos guardadas.");
+    return;
+  }
+
+  let count = 0;
+  for (const it of items) {
+    if (it.foto) {
+      const fotoData = it.foto.split(",")[1];
+      zip.file(`Valvula_${it.serie}_valvula.jpg`, fotoData, { base64: true });
+      count++;
     }
-
-    let contador = 0;
-
-    list.forEach(item => {
-      if (item.foto) {
-        const link1 = document.createElement('a');
-        link1.href = item.foto;
-        link1.download = `Valvula_${item.serie}_valvula.jpg`;
-        document.body.appendChild(link1);
-        link1.click();
-        link1.remove();
-        contador++;
-      }
-      if (item.fotoPlaca) {
-        const link2 = document.createElement('a');
-        link2.href = item.fotoPlaca;
-        link2.download = `Valvula_${item.serie}_placa.jpg`;
-        document.body.appendChild(link2);
-        link2.click();
-        link2.remove();
-        contador++;
-      }
-    });
-
-    if (contador === 0) {
-      alert('⚠️ No se encontraron fotos en los registros guardados.');
-    } else {
-      alert(`✅ ${contador} fotos exportadas correctamente.`);
+    if (it.fotoPlaca) {
+      const fotoPlacaData = it.fotoPlaca.split(",")[1];
+      zip.file(`Valvula_${it.serie}_placa.jpg`, fotoPlacaData, { base64: true });
+      count++;
     }
-  });
+  }
+
+  if (count === 0) {
+    alert("No se encontraron fotos guardadas.");
+    return;
+  }
+
+  const blob = await zip.generateAsync({ type: "blob" });
+  saveAs(blob, "fotos_valvulas.zip");
+  alert(`Descarga completa: ${count} fotos exportadas en un ZIP.`);
 }
+
 
