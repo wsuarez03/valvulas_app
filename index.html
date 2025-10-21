@@ -6,11 +6,41 @@
   <title>Levantamiento de Válvulas</title>
   <link rel="manifest" href="manifest.json">
   <link rel="stylesheet" href="styles.css">
+  <style>
+    ul#savedList { list-style: none; padding: 0; }
+    ul#savedList li {
+      border: 1px solid #ccc;
+      margin-bottom: 8px;
+      padding: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-radius: 8px;
+      background: #f9f9f9;
+    }
+    ul#savedList li input[type="checkbox"] {
+      transform: scale(1.4);
+      margin-right: 8px;
+    }
+    .bulk-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+    button {
+      border: none;
+      border-radius: 6px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.85; }
+  </style>
 </head>
 <body>
   <header>
     <h1>Levantamiento de Válvulas</h1>
-    <p class="subtitle">Registro rápido con foto — Guardado offline y envío cuando haya internet</p>
+    <p class="subtitle">Registro rápido con foto — Guardado offline y acciones por selección</p>
   </header>
 
   <main>
@@ -18,20 +48,16 @@
       <label>Foto de la válvula
         <input id="photoInput" accept="image/*" capture="environment" type="file" />
       </label>
-      <div id="previewWrap">
-        <img id="photoPreview" alt="Vista previa válvula" style="display:none;" />
-      </div>
+      <div><img id="photoPreview" alt="Vista previa válvula" /></div>
 
       <label>Foto de la placa
         <input id="photoPlacaInput" accept="image/*" capture="environment" type="file" />
       </label>
-      <div id="previewPlacaWrap">
-        <img id="photoPlacaPreview" alt="Vista previa placa" style="display:none;" />
-      </div>
+      <div><img id="photoPlacaPreview" alt="Vista previa placa" /></div>
 
       <label>Cliente <input id="cliente" required /></label>
-      <label>Serie <input id="serie" /></label>
-      <label>Tag <input id="tag" required /></label>
+      <label>Serie <input id="serie" required /></label>
+      <label>Tag <input id="tag" /></label>
       <label>Marca <input id="marca" /></label>
       <label>Modelo <input id="modelo" /></label>
       <label>Tamaño <input id="tamano" /></label>
@@ -40,49 +66,30 @@
       <label>Fecha <input id="fecha" type="date" /></label>
       <label>Observaciones <textarea id="obs"></textarea></label>
 
-      <div class="buttons">
-        <button type="button" id="saveBtn">Guardar (local)</button>
-        <button type="button" id="pdfBtn">Generar PDF y descargar</button>
-      </div>
+      <button type="button" id="saveBtn">💾 Guardar local</button>
     </form>
 
-    <section class="pending">
-      <h2>Envíos pendientes</h2>
-      <ul id="pendingList"></ul>
-      <div class="pending-actions">
-        <button id="sendPendingBtn">Enviar pendientes ahora</button>
+    <section class="saved">
+      <h2>Hojas guardadas</h2>
+      <ul id="savedList"></ul>
+
+      <div class="bulk-actions">
+        <button id="pdfSelectedBtn">📄 Generar PDF</button>
+        <button id="shareSelectedBtn">📤 Compartir</button>
+        <button id="deleteSelectedBtn" style="background:#ef4444;color:white;">🗑 Eliminar</button>
+        <button id="exportSelectedPhotosBtn">📸 Exportar fotos</button>
       </div>
     </section>
 
-    <section class="saved">
-  <h2>Hojas de vida guardadas (local)</h2>
-  <ul id="savedList"></ul>
-  <div class="saved-actions">
-    <button id="shareAllBtn">📤 Compartir todas las hojas guardadas</button>
-    <button type="button" onclick="exportarFotos()">📸 Exportar fotos guardadas</button>
-  </div>
-</section>
-
-
     <footer>
-      <small>Contacto de envío por defecto: tecnicodeservicios@valserindustriales.com</small>
+      <small>VALSER INDUSTRIALES S.A.S — App de levantamiento de válvulas</small>
     </footer>
   </main>
 
   <!-- Dependencias -->
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@2.6.4/dist/email.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
   <script src="app.js"></script>
-
-  <script>
-    (function(){
-      if(window.emailjs){
-        emailjs.init('YOUR_EMAILJS_USER_ID');
-      }
-    })();
-  </script>
 </body>
 </html>
