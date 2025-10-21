@@ -40,19 +40,15 @@ function addToDB(data, cb) {
 
 function getAllFromDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open("valvulasDB", 1);
-    request.onerror = () => reject("Error al abrir la base de datos");
-    request.onsuccess = (event) => {
-      const db = event.target.result;
-      const transaction = db.transaction(["valvulas"], "readonly");
-      const store = transaction.objectStore("valvulas");
-      const getAllRequest = store.getAll();
-
-      getAllRequest.onsuccess = () => resolve(getAllRequest.result || []);
-      getAllRequest.onerror = () => reject("Error al obtener los datos");
-    };
+    const tx = db.transaction(STORE_NAME, 'readonly');
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = e => reject(e);
   });
 }
+
+
 
 
 function deleteFromDB(serie, cb) {
@@ -145,31 +141,35 @@ function readFormData() {
 }
 
 // === Render listado local ===
-function renderSaved() {
+async function renderSaved() {
   const wrap = el('savedList');
   wrap.innerHTML = '<li>Cargando...</li>';
-  getAllFromDB(list => {
-    wrap.innerHTML = '';
-    if (!list.length) {
-      wrap.innerHTML = '<li>No hay hojas guardadas</li>';
-      return;
-    }
-    list.forEach(it => {
-      const li = document.createElement('li');
-      li.innerHTML = `
-        <div>
-          <strong>${it.serie}</strong> <br>
-          <small>${it.fecha || ''} • ${it.createdAt || ''}</small>
-        </div>
-        <div>
-          <button onclick='downloadSaved("${it.serie}")'>📄 PDF</button>
-          <button onclick='deleteSaved("${it.serie}")' style="background:#ef4444;color:white">🗑</button>
-        </div>
-      `;
-      wrap.appendChild(li);
-    });
+
+  const list = await getAllFromDB();
+  wrap.innerHTML = '';
+
+  if (!list.length) {
+    wrap.innerHTML = '<li>No hay hojas guardadas</li>';
+    return;
+  }
+
+  list.forEach(it => {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div>
+        <strong>${it.serie}</strong> <br>
+        <small>${it.fecha || ''} • ${it.createdAt || ''}</small>
+      </div>
+      <div>
+        <button onclick='downloadSaved("${it.serie}")'>📄 PDF</button>
+        <button onclick='deleteSaved("${it.serie}")' style="background:#ef4444;color:white">🗑</button>
+      </div>
+    `;
+    wrap.appendChild(li);
   });
 }
+
+
 
 // === Eliminar ===
 function deleteSaved(serie) {
