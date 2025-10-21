@@ -325,3 +325,44 @@ window.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('shareAllBtn');
   if (btn) btn.addEventListener('click', shareAllPdfs);
 });
+
+
+// === Exportar fotos guardadas ===
+function exportarFotos() {
+  getAllFromDB(list => {
+    if (!list.length) {
+      alert('⚠️ No hay hojas guardadas con fotos.');
+      return;
+    }
+
+    let contador = 0;
+
+    list.forEach(item => {
+      if (item.foto) {
+        const link1 = document.createElement('a');
+        link1.href = item.foto;
+        link1.download = `Valvula_${item.serie}_valvula.jpg`;
+        document.body.appendChild(link1);
+        link1.click();
+        link1.remove();
+        contador++;
+      }
+      if (item.fotoPlaca) {
+        const link2 = document.createElement('a');
+        link2.href = item.fotoPlaca;
+        link2.download = `Valvula_${item.serie}_placa.jpg`;
+        document.body.appendChild(link2);
+        link2.click();
+        link2.remove();
+        contador++;
+      }
+    });
+
+    if (contador === 0) {
+      alert('⚠️ No se encontraron fotos en los registros guardados.');
+    } else {
+      alert(`✅ ${contador} fotos exportadas correctamente.`);
+    }
+  });
+}
+
