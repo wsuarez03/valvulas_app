@@ -38,11 +38,22 @@ function addToDB(data, cb) {
   req.onerror = e => console.error('Error al guardar:', e);
 }
 
-function getAllFromDB(cb) {
-  const tx = db.transaction(STORE_NAME, 'readonly');
-  const req = tx.objectStore(STORE_NAME).getAll();
-  req.onsuccess = () => cb(req.result);
+function getAllFromDB() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open("valvulasDB", 1);
+    request.onerror = () => reject("Error al abrir la base de datos");
+    request.onsuccess = (event) => {
+      const db = event.target.result;
+      const transaction = db.transaction(["valvulas"], "readonly");
+      const store = transaction.objectStore("valvulas");
+      const getAllRequest = store.getAll();
+
+      getAllRequest.onsuccess = () => resolve(getAllRequest.result || []);
+      getAllRequest.onerror = () => reject("Error al obtener los datos");
+    };
+  });
 }
+
 
 function deleteFromDB(serie, cb) {
   const tx = db.transaction(STORE_NAME, 'readwrite');
